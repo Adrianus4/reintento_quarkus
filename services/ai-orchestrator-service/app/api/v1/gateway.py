@@ -44,6 +44,8 @@ def update_gateway_config(
 
     if payload.active_provider is not None:
         config.active_provider = payload.active_provider.lower().strip()
+    if payload.model_name is not None:
+        config.model_name = payload.model_name.strip()
     if payload.consumption_mode is not None:
         config.consumption_mode = payload.consumption_mode.lower().strip()
     if payload.temperature is not None:

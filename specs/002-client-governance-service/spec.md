@@ -3,7 +3,7 @@
 **Feature Branch**: `002-client-governance-service`  
 **Created**: 2026-10-21  
 **Status**: Draft  
-**Version Alignment**: Constitution `v1.2.0` (Principio III: Cumplimiento Normativo y Verificación Determinista, Principio V: Plataforma 100% Agnóstica a Clientes - Zero Hardcoding, Principio XIII: Puerto 8002, Principio XIV: Zero Preloaded Data)
+**Version Alignment**: Constitution `v1.3.0` (Principio III: Cumplimiento Normativo y Verificación Determinista, Principio V: Plataforma 100% Agnóstica a Clientes - Zero Hardcoding, Principio XIII: Puerto 8002, Principio XIV: Mandato de Generación Sin Errores)
 
 ---
 
@@ -21,7 +21,7 @@ Implementar el microservicio **`client-governance-service`** (Puerto `8002`) par
 * **Quiero**: Registrar, actualizar y consultar perfiles de cuentas de clientes (código, nombre, prefijo de paquete Java, versión de Java 17/21 y versión de Quarkus).
 * **Para**: Parametrizar dinámicamente cualquier cuenta corporativa sin tocar el código fuente de la fábrica.
 * **Por qué esta prioridad**: Es la base del principio multi-cliente y neutralidad de la plataforma.
-* **Prueba Independiente**: Un Administrador registra el perfil del cliente `bcp` o `retail-corp` vía `POST /api/v1/clients`, y un Desarrollador autorizado puede consultar su configuración vía `GET /api/v1/clients/{client_code}`.
+* **Prueba Independiente**: Un Administrador registra o consulta el perfil del cliente `bcp` o `ibk` (Interbank Perú) vía `POST /api/v1/clients` / `GET /api/v1/clients`, y un Desarrollador autorizado puede consultar su configuración vía `GET /api/v1/clients/{client_code}` con su paquete base (`pe.com.interbank` o `pe.com.bcp`) y directivas específicas de arquitectura, seguridad y datos.
 
 **Criterios de Aceptación**:
 1. **Given** un token válido con rol `ADMIN`, **When** envía `POST /api/v1/clients` con datos válidos (`code`, `name`, `package_prefix`, `java_version`, `quarkus_version`), **Then** se crea el perfil y responde `201 Created`.

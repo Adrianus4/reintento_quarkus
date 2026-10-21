@@ -16,13 +16,14 @@ Stores Fernet-encrypted API keys for AI model providers.
 | `updated_at` | DATETIME | NOT NULL | UTC last update timestamp |
 
 ### 1.2 `gateway_configurations` Table
-Stores active AI provider, model, and operational mode.
+Stores active AI provider, model name, and parameters (direct API & model ingestion).
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | VARCHAR(36) | PRIMARY KEY | UUIDv4 string identifier |
 | `active_provider` | VARCHAR(50) | NOT NULL, DEFAULT `'mock'` | Active provider: `gemini`, `deepseek`, `grok`, `mock` |
-| `consumption_mode` | VARCHAR(30) | NOT NULL, DEFAULT `'balanced'` | `economic`, `balanced`, `advanced` |
+| `model_name` | VARCHAR(100) | NULLABLE | Specific model identifier (e.g. `gemini-2.5-flash`, `deepseek-chat`) |
+| `consumption_mode` | VARCHAR(30) | NOT NULL, DEFAULT `'standard'` | Legacy/fallback compatibility mode |
 | `temperature` | FLOAT | NOT NULL, DEFAULT 0.2 | Sampling temperature |
 | `max_tokens` | INTEGER | NOT NULL, DEFAULT 8192 | Maximum output tokens per generation call |
 | `updated_at` | DATETIME | NOT NULL | UTC timestamp of last adjustment |
@@ -39,7 +40,7 @@ Stores state, blueprint, generated artifacts, and telemetry of microservice gene
 | `requirements` | TEXT | NOT NULL | Natural language business requirements |
 | `architecture_style` | VARCHAR(50) | NULLABLE | `Hexagonal`, `Layered`, `Event-Driven`, `BFF`, `gRPC` |
 | `status` | VARCHAR(30) | NOT NULL | `PENDING`, `IN_PROGRESS`, `AWAITING_REVIEW`, `APPROVED`, `FAILED` |
-| `blueprint_json` | TEXT | NULLABLE | JSON string of architectural blueprint |
+| `blueprint_json` | TEXT | NULLABLE | JSON string of architectural blueprint & custom user inputs (`entities`, `endpoints`, `extensions`, `properties`, etc.) |
 | `files_json` | TEXT | NOT NULL, DEFAULT `'{}'` | JSON dict mapping file paths to file contents |
 | `prompt_tokens` | INTEGER | NOT NULL, DEFAULT 0 | Cumulative prompt tokens consumed |
 | `completion_tokens` | INTEGER | NOT NULL, DEFAULT 0 | Cumulative completion tokens consumed |
@@ -48,6 +49,52 @@ Stores state, blueprint, generated artifacts, and telemetry of microservice gene
 | `error_message` | TEXT | NULLABLE | Details if execution failed |
 | `created_at` | DATETIME | NOT NULL | UTC creation timestamp |
 | `updated_at` | DATETIME | NOT NULL | UTC last update timestamp |
+
+### 1.4 `JobCreateRequest` Input Payload (Pydantic v2)
+Estructura extendida para permitir el ingreso libre de todos los parámetros de personalización:
+
+```json
+{
+  "client_code": "ibk",
+  "artifact_id": "ibk-transfers-service",
+  "package_prefix": "pe.com.interbank",
+  "http_port": 8080,
+  "java_version": "21",
+  "requirements": "Microservicio bancario de transferencias interbancarias...",
+  "architecture_style": "Hexagonal",
+  "custom_architecture_notes": "Separar capas con puertos in/out e inmutabilidad en Value Objects.",
+  "security_option": "JWT",
+  "jwt_issuer": "https://auth.interbank.pe",
+  "security_roles": ["ADMIN", "OPERATOR", "AUDITOR"],
+  "communication_protocol": "REST",
+  "custom_endpoints": [
+    { "method": "POST", "path": "/api/v1/transfers", "summary": "Ejecutar transferencia" },
+    { "method": "GET", "path": "/api/v1/transfers/{id}", "summary": "Consultar transferencia" }
+  ],
+  "database_option": "POSTGRESQL_PANACHE",
+  "database_name": "ibk_transfers_db",
+  "entities": [
+    {
+      "name": "Transfer",
+      "tableName": "transfers",
+      "fields": [
+        { "name": "id", "type": "String", "required": true, "isId": true },
+        { "name": "amount", "type": "BigDecimal", "required": true }
+      ]
+    }
+  ],
+  "extensions": [
+    "quarkus-resteasy-reactive-jackson",
+    "quarkus-smallrye-openapi",
+    "quarkus-smallrye-health"
+  ],
+  "custom_extensions": ["quarkus-mailer", "quarkus-hibernate-validator"],
+  "custom_properties": {
+    "interbank.transfers.daily-limit": "50000.00",
+    "interbank.audit.enabled": "true"
+  }
+}
+```
 
 ---
 

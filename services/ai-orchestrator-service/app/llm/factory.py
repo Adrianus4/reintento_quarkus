@@ -16,7 +16,8 @@ class LLMClientFactory:
             return MockLLMClient(mode="balanced")
 
         provider = config.active_provider.lower()
-        mode = config.consumption_mode
+        mode = getattr(config, "consumption_mode", "standard") or "standard"
+        model_name = getattr(config, "model_name", None)
 
         if provider == "mock":
             return MockLLMClient(mode=mode)
@@ -34,9 +35,9 @@ class LLMClientFactory:
         api_key = decrypt_secret(cred.encrypted_key)
 
         if provider == "gemini":
-            return GeminiClient(api_key=api_key, mode=mode)
+            return GeminiClient(api_key=api_key, mode=mode, model_name=model_name)
         elif provider in ["deepseek", "grok"]:
-            return OpenAICompatClient(provider=provider, api_key=api_key, mode=mode)
+            return OpenAICompatClient(provider=provider, api_key=api_key, mode=mode, model_name=model_name)
 
         return MockLLMClient(mode=mode)
 

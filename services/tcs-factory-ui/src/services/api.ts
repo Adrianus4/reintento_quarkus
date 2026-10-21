@@ -223,20 +223,43 @@ export const api = {
       }
     },
     getGatewayConfig: () =>
-      request<{ active_provider: string; consumption_mode?: string; tier?: string }>(PORTS.ORCHESTRATOR, '/ai-gateway/config'),
-    updateGatewayConfig: (data: { active_provider: string; tier: string }) =>
+      request<{ active_provider: string; model_name?: string; consumption_mode?: string; tier?: string }>(PORTS.ORCHESTRATOR, '/ai-gateway/config'),
+    updateGatewayConfig: (data: { active_provider: string; model_name?: string; tier?: string }) =>
       request<any>(PORTS.ORCHESTRATOR, '/ai-gateway/config', {
         method: 'PUT',
         body: JSON.stringify({
           active_provider: data.active_provider.toLowerCase(),
-          consumption_mode: data.tier.toLowerCase(),
+          model_name: data.model_name || undefined,
+          consumption_mode: data.tier ? data.tier.toLowerCase() : 'balanced',
         }),
       }),
+    listJobs: async () => {
+      const list = await request<any[]>(PORTS.ORCHESTRATOR, '/orchestrator/jobs');
+      return Array.isArray(list) ? list.map(normalizeJob) : [];
+    },
+    getConsumptionTelemetry: () =>
+      request<any>(PORTS.ORCHESTRATOR, '/orchestrator/consumption'),
     createJob: async (data: {
       client_code: string;
       raw_requirement?: string;
       requirements?: string;
       architecture_style?: string;
+      custom_architecture_notes?: string;
+      security_option?: string;
+      jwt_issuer?: string;
+      security_roles?: string[];
+      communication_protocol?: string;
+      custom_endpoints?: any[];
+      database_option?: string;
+      database_name?: string;
+      package_prefix?: string;
+      artifact_id?: string;
+      http_port?: number;
+      java_version?: string;
+      extensions?: string[];
+      custom_extensions?: string[];
+      custom_properties?: any;
+      entities?: any[];
       contract_id?: string;
     }) => {
       const reqText = data.requirements || data.raw_requirement || '';
@@ -245,6 +268,22 @@ export const api = {
         requirements: reqText,
         raw_requirement: reqText,
         architecture_style: data.architecture_style || undefined,
+        custom_architecture_notes: data.custom_architecture_notes || undefined,
+        security_option: data.security_option || undefined,
+        jwt_issuer: data.jwt_issuer || undefined,
+        security_roles: data.security_roles || undefined,
+        communication_protocol: data.communication_protocol || undefined,
+        custom_endpoints: data.custom_endpoints || [],
+        database_option: data.database_option || undefined,
+        database_name: data.database_name || undefined,
+        package_prefix: data.package_prefix || undefined,
+        artifact_id: data.artifact_id || undefined,
+        http_port: data.http_port || 8080,
+        java_version: data.java_version || undefined,
+        extensions: data.extensions || [],
+        custom_extensions: data.custom_extensions || [],
+        custom_properties: data.custom_properties || undefined,
+        entities: data.entities || [],
         contract_id: data.contract_id || undefined,
       };
       const res = await request<any>(PORTS.ORCHESTRATOR, '/orchestrator/jobs', {

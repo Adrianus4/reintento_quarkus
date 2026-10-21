@@ -21,13 +21,15 @@ GROK_MODELS = {
 
 
 class OpenAICompatClient(BaseLLMClient):
-    def __init__(self, provider: str, api_key: str, mode: str = "balanced"):
+    def __init__(self, provider: str, api_key: str, mode: str = "balanced", model_name: str = None):
         self.provider = provider.lower()
         self.api_key = api_key
         self.mode = mode
         self.endpoint = PROVIDER_URLS.get(self.provider, PROVIDER_URLS["deepseek"])
 
-        if self.provider == "deepseek":
+        if model_name and model_name != "default":
+            self.model_name = model_name
+        elif self.provider == "deepseek":
             self.model_name = DEEPSEEK_MODELS.get(mode, "deepseek-chat")
         else:
             self.model_name = GROK_MODELS.get(mode, "grok-2")

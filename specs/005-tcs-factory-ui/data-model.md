@@ -78,6 +78,50 @@ export interface GeneratedFile {
   content: string;
 }
 
+export interface CustomEndpoint {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  summary: string;
+  status_code?: number;
+}
+
+export interface EntityField {
+  name: string;
+  type: string;
+  required: boolean;
+  isId?: boolean;
+}
+
+export interface EntityDefinition {
+  name: string;
+  tableName?: string;
+  fields: EntityField[];
+}
+
+export interface MicroserviceConfig {
+  client_code: string;
+  artifact_id: string;
+  package_prefix: string;
+  http_port: number;
+  java_version: string;
+  quarkus_version: string;
+  requirements: string;
+  architecture_style: string;
+  custom_architecture_notes?: string;
+  security_option: string;
+  jwt_issuer?: string;
+  security_roles?: string[];
+  communication_protocol: string;
+  custom_endpoints?: CustomEndpoint[];
+  database_option: string;
+  database_name?: string;
+  entities: EntityDefinition[];
+  extensions: string[];
+  custom_extensions?: string[];
+  custom_properties?: Record<string, string>;
+  contract_id?: string;
+}
+
 export interface OrchestrationJob {
   job_id: string;
   client_id: string;

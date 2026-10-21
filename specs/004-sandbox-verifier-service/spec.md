@@ -3,7 +3,7 @@
 **Feature Branch**: `004-sandbox-verifier-service`  
 **Created**: 2026-10-21  
 **Status**: Draft  
-**Version Alignment**: Constitution `v1.2.0` (Principio VI: Calidad Verificable en Sandbox Aislado, Principio XIII: Puerto 8004, Principio XIV: Manifiesto Criptográfico SHA-256)
+**Version Alignment**: Constitution `v1.3.0` (Principio VI: Calidad Verificable y Pruebas en Docker con Tecnología Nativa Quarkus, Principio XIII: Puerto 8004, Principio XIV: Mandato de Generación Sin Errores y Manifiesto SHA-256)
 
 ---
 
@@ -11,9 +11,9 @@
 
 Implementar el microservicio **`sandbox-verifier-service`** (Puerto `8004`) para **TCS Intelligent Microservice Factory**. Este servicio opera como el plano de ejecución efímero e independiente responsable de:
 1. **Materializar** los archivos fuente del microservicio generado en un espacio de trabajo aislado.
-2. **Ejecutar la compilación real** con Maven (`mvn -B clean test-compile` o `mvn -B test`) y pruebas automatizadas Surefire.
-3. **Calcular el Manifiesto Criptográfico SHA-256** (`VERIFICATION_MANIFEST.json`) que certifica la integridad y calidad verificable de cada archivo.
-4. **Empaquetar y descargar** el archivo comprimido `.zip` final listo para producción o despliegue.
+2. **Ejecutar la compilación real y pruebas** en entornos Docker utilizando la tecnología nativa de pruebas de Quarkus (`@QuarkusTest`, DevServices, Testcontainers, Maven Surefire y RestAssured).
+3. **Calcular el Manifiesto Criptográfico SHA-256** (`VERIFICATION_MANIFEST.json`) en segundo plano como sello de calidad de integridad de los archivos, sin obstaculizar el flujo del desarrollador.
+4. **Empaquetar y descargar** el archivo comprimido `.zip` final listo para despliegue.
 
 ---
 

@@ -3,17 +3,18 @@
 **Feature Branch**: `003-ai-orchestrator-service`  
 **Created**: 2026-10-21  
 **Status**: Draft  
-**Version Alignment**: Constitution `v1.2.0` (Principio I: Estilos Adaptativos, Principio II: Capacidades Bajo Demanda, Principio IV: Bóveda de Credenciales Cifradas, Principio VIII: LangGraph Resiliente, Principio IX: Capa Flexible de IA con Gemini/DeepSeek/Grok, Principio XII: Human-in-the-Loop, Principio XIII: Puerto 8003)
+**Version Alignment**: Constitution `v1.3.0` (Principio I: Estilos Adaptativos, Principio II: Capacidades Bajo Demanda & 100% Stateless sin BD forzada, Principio IV: Bóveda Fernet, Principio VIII: LangGraph Resiliente, Principio IX: Bóveda Cifrada e IA Desacoplada sin intermediarios, Principio XI: Observabilidad y Telemetría en Tiempo Real de Tokens y Costos, Principio XII: Human-in-the-Loop, Principio XIII: Puerto 8003, Principio XIV: Mandato de Generación Sin Errores en Quarkus según Pedido)
 
 ---
 
 ## 1. Executive Summary & Purpose
 
 Implementar el microservicio **`ai-orchestrator-service`** (Puerto `8003`) para **TCS Intelligent Microservice Factory**. Este servicio centraliza:
-1. La **Bóveda de Credenciales Cifradas** (Fernet) para gestionar con seguridad las API Keys de los proveedores de IA sin exponer secretos en texto plano.
-2. El **Gateway de Modelos de IA** compatible con Google Gemini, DeepSeek y Grok, con conmutación en caliente y modos de consumo (`economic`, `balanced`, `advanced`).
-3. El **Motor de Orquestación Multi-Agente con LangGraph** con contexto acumulativo, selección de arquitectura no monolítica (Hexagonal, En Capas, Event-Driven, BFF, gRPC), generación de Java/Quarkus con pruebas automatizadas, control de presupuesto de tokens y parser JSON resiliente.
-4. Las compuertas de **Supervisión Humana (Human-in-the-Loop)** para que los colaboradores de TCS puedan inspeccionar, editar código generado y aprobarlo antes de la verificación.
+1. La **Bóveda de Credenciales Cifradas** (Fernet) para almacenar llaves de API de los proveedores de IA sin exponer secretos en texto plano.
+2. El **Gateway de Modelos de IA** compatible con Google Gemini, DeepSeek, Grok y Mock, con conmutación en caliente e ingesta directa de proveedor y modelo LLM (`model_name`) sin intermediarios ni tiers de consumo artificiales.
+3. El **Motor de Orquestación Multi-Agente con LangGraph** para generar microservicios en Quarkus **sin errores según el pedido del usuario**, respetando estrictamente los inputs técnicos (o Blueprint JSON ingestada): si no se solicita persistencia, el servicio es **100% stateless** (cero Hibernate, cero Panache).
+4. Las compuertas de **Supervisión Humana (Human-in-the-Loop - HITL)** para que el desarrollador inspeccione las propuestas de la IA, configure, edite el código en pantalla y apruebe antes de la verificación.
+5. La **Telemetría y Observabilidad de Tokens** (`GET /api/v1/orchestrator/consumption`) con registro en tiempo real de tokens de entrada/salida y costos monetarios USD desglosados por proyecto y por proveedor de modelo.
 
 ---
 
@@ -34,33 +35,56 @@ Implementar el microservicio **`ai-orchestrator-service`** (Puerto `8003`) para 
 
 ---
 
-### User Story 2 - Gateway de Modelos de IA con Conmutación en Caliente (Priority: P1)
+### User Story 2 - Gateway de Modelos de IA con Selección Directa de API y Modelo (Priority: P1)
 
 * **Como**: Administrador o Desarrollador de TCS.
-* **Quiero**: Seleccionar el proveedor activo (Gemini, DeepSeek o Grok) y el modo de consumo (`economic`, `balanced`, `advanced`) sin reiniciar el servicio.
-* **Para**: Adaptar el rendimiento y los costos de generación según la complejidad del microservicio.
-* **Prueba Independiente**: Se actualiza la configuración a proveedor `deepseek` y modo `balanced`; la siguiente petición de generación utiliza el modelo asignado a ese perfil de consumo.
+* **Quiero**: Configurar directamente la API Key del proveedor (Gemini, DeepSeek, Grok, Mock) y especificar el modelo deseado sin intermediación de modos o niveles de consumo artificiales.
+* **Para**: Tener control explícito sobre el modelo de lenguaje invocado y simplificar la gestión operativa sin romper la compatibilidad hacia atrás del código.
+* **Prueba Independiente**: Se actualiza la configuración vía `PUT /api/v1/ai-gateway/config` enviando `active_provider` y `model_name`; la siguiente petición de generación invoca directamente dicho modelo.
 
 **Criterios de Aceptación**:
-1. **Given** una configuración enviada a `PUT /api/v1/ai-gateway/config`, **Then** los agentes actualizan su proveedor y modelo activo en caliente.
-2. **Given** el modo `economic`, **Then** se asignan modelos rápidos y económicos (ej. `gemini-2.5-flash-lite`, `deepseek-chat`).
-3. **Given** el modo `balanced`, **Then** se asigna el modelo estándar balanceado (ej. `gemini-2.5-flash`, `deepseek-chat`).
-4. **Given** el modo `advanced`, **Then** se asigna el modelo de razonamiento superior (ej. `gemini-2.5-pro`, `deepseek-reasoner`).
+1. **Given** una configuración enviada a `PUT /api/v1/ai-gateway/config`, **Then** los agentes actualizan su proveedor y modelo activo directamente.
+2. **Given** la eliminación de los niveles o modos de consumo (`economic`, `balanced`, `advanced`), **Then** el sistema permite ingestar directamente la API Key y el nombre de modelo (ej. `gemini-2.5-flash`, `deepseek-chat`, `grok-beta`) conservando valores por defecto tolerantes para compatibilidad de esquemas previos.
+3. **Given** el proveedor `mock`, **Then** opera offline de forma determinista para desarrollo y pruebas locales.
 
 ---
 
-### User Story 3 - Motor de Generación Multi-Agente LangGraph (Priority: P1)
+### User Story 3 - Motor de Generación Multi-Agente LangGraph con Ingestión de Blueprint o Redacción Libre (Priority: P1)
 
-* **Como**: Desarrollador de TCS autorizado para un cliente.
-* **Quiero**: Ingresar requerimientos funcionales y el ID de un contrato OpenAPI catalogado en `client-governance-service:8002` para generar un microservicio Quarkus completo.
-* **Para**: Obtener código modular, estructurado, con pruebas unitarias (`JUnit 5`), pruebas de integración (`@QuarkusTest` / RestAssured), dependencias limpias y workflow de CI/CD.
-* **Prueba Independiente**: Se inicia un trabajo de generación vía `POST /api/v1/orchestrator/jobs`; el grafo LangGraph ejecuta los nodos (Blueprint -> Scaffolding -> Dominio -> Pruebas), acumulando contexto y entregando un árbol de archivos completo con telemetría de tokens y costo en USD.
+* **Como**: Desarrollador de TCS autorizado para un cliente (ej. `ibk`, `bcp`).
+* **Quiero**: Al inicio, elegir entre redactar libremente lo que deseo construir o ingestar un Blueprint JSON existente para pre-poblar y sincronizar todas las fases técnicas del microservicio (arquitectura, seguridad, endpoints, base de datos y extensiones), pudiendo editarlas libremente; o en su defecto, ir dando forma paso a paso conforme avanzo por las fases.
+* **Para**: Adecuar con precisión milimétrica el microservicio en Quarkus sin fallas, con total flexibilidad de entrada y control de ingeniería.
+
+---
+
+### User Story 5 - Módulo de Telemetría de Consumo de Tokens y Costos por Proyecto y Proveedor (Priority: P1)
+
+* **Como**: Colaborador o Administrador de TCS.
+* **Quiero**: Consultar el registro detallado de tokens consumidos acumulados y por proyecto/microservicio, así como el desglose consolidado por proveedor de modelo de IA (Gemini, DeepSeek, Grok, Mock).
+* **Para**: Auditar el gasto en tokens (entrada/salida), costos en USD y volumen de generación de la plataforma.
+* **Prueba Independiente**: Se invoca `GET /api/v1/orchestrator/consumption` y el sistema retorna un resumen consolidado con KPIs globales, desglose por proveedor y lista histórica de consumos por proyecto.
+
+---
+
+### User Story 3 - Motor de Generación Multi-Agente LangGraph con Libertad Total de Inputs y Configuración (Priority: P1)
+
+* **Como**: Desarrollador de TCS autorizado para un cliente (ej. `ibk`, `bcp`).
+* **Quiero**: Ingresar libremente mis requerimientos y parametrizar cada dimensión técnica del microservicio mediante campos de entrada (*inputs*) editables:
+  - **Inputs de Proyecto**: Cliente (`client_code`), nombre del microservicio (`artifact_id`), prefijo de paquete (`package_prefix`), puerto HTTP (`http_port`) y versión Java (`java_version`).
+  - **Inputs de Arquitectura**: Patrón arquitectónico (`architecture_style`) y notas/reglas de arquitectura personalizadas (`custom_architecture_notes`).
+  - **Inputs de Seguridad**: Mecanismo de autenticación (`security_option`), emisor JWT/OIDC (`jwt_issuer`) y roles autorizados (`security_roles`).
+  - **Inputs de Endpoints**: Lista de endpoints HTTP personalizados (`custom_endpoints`) con método, ruta, código de estado y descripción.
+  - **Inputs de Persistencia**: Motor de base de datos (`database_option`), nombre de base de datos (`database_name`) y definición dinámica de entidades y campos tipados (`entities`).
+  - **Inputs de Extensiones y Propiedades**: Inyección de extensiones Quarkus predefinidas y libres (`custom_extensions`), y propiedades clave-valor adicionales (`custom_properties`).
+  - **Input de Reglas de Negocio**: Especificación funcional en lenguaje natural (`requirements`).
+* **Para**: Adecuar con precisión milimétrica el microservicio en Quarkus a los requerimientos de la cuenta bancaria sin fallas, sin suposiciones no justificadas y con total control del desarrollador.
+* **Prueba Independiente**: Se inicia un trabajo de generación vía `POST /api/v1/orchestrator/jobs` enviando el payload completo con los inputs personalizados; el grafo LangGraph inyecta estas especificaciones en el blueprint, `pom.xml`, `application.properties`, clases de dominio, adaptadores REST y pruebas unitarias/integración.
 
 **Criterios de Aceptación**:
-1. **Given** una solicitud con `client_code`, `requirements` y `contract_id`, **When** se crea el trabajo, **Then** el orquestador consulta la gobernanza consolidada en `client-governance-service:8002` y rechaza la ejecución si el desarrollador no está asignado al cliente.
-2. **Given** el nodo de Blueprint, **Then** el motor selecciona justificadamente el estilo arquitectónico (`Hexagonal`, `Layered`, `Event-Driven`, `BFF` o `gRPC`) según las directivas y requerimientos, prohibiendo forzar librerías o persistencia no solicitadas (Principio I y II).
-3. **Given** respuestas del modelo de IA, **Then** el parser resiliente extrae bloques JSON válidos, auto-completa delimitadores si ocurren truncamientos y garantiza `maxOutputTokens >= 8192`.
-4. **Given** la finalización de los nodos, **Then** el trabajo queda en estado `AWAITING_REVIEW` con telemetría de tokens consumidos, tiempo y costo estimado en USD.
+1. **Given** una solicitud con los inputs personalizados del desarrollador, **When** se crea el trabajo, **Then** el orquestador valida el acceso al cliente y almacena la configuración completa en `JobState` y en `generation_jobs.blueprint_json`.
+2. **Given** la existencia de endpoints personalizados (`custom_endpoints`) y entidades (`entities`), **Then** el generador produce los recursos REST correspondientes con sus paths exactos, DTOs y persistencia asociada.
+3. **Given** extensiones libres (`custom_extensions`) y propiedades (`custom_properties`), **Then** el generador las incorpora en `pom.xml` y `application.properties` sin generar conflictos de dependencias.
+4. **Given** la finalización de los nodos, **Then** el trabajo queda en estado `AWAITING_REVIEW` con telemetría de tokens consumidos, tiempo y costo estimado en USD, listo para inspección en el CodeViewer (HITL).
 
 ---
 

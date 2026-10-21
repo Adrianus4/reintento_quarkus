@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
 interface NavbarProps {
-  currentTab: 'studio' | 'admin';
-  setCurrentTab: (tab: 'studio' | 'admin') => void;
+  currentTab: 'studio' | 'consumption' | 'admin';
+  setCurrentTab: (tab: 'studio' | 'consumption' | 'admin') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
@@ -79,20 +79,31 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           </div>
         </div>
 
-        {/* Navigation Tabs (if ADMIN) & User Bar */}
+        {/* Navigation Tabs & User Bar */}
         <div className="flex items-center space-x-4">
-          {user?.role === 'ADMIN' && (
-            <div className="bg-tcs-dark p-1 rounded-lg border border-tcs-border flex space-x-1">
-              <button
-                onClick={() => setCurrentTab('studio')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  currentTab === 'studio'
-                    ? 'bg-tcs-blue text-white shadow-sm'
-                    : 'text-tcs-muted hover:text-white'
-                }`}
-              >
-                Workspace Studio
-              </button>
+          <div className="bg-tcs-dark p-1 rounded-lg border border-tcs-border flex space-x-1">
+            <button
+              onClick={() => setCurrentTab('studio')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                currentTab === 'studio'
+                  ? 'bg-tcs-blue text-white shadow-sm'
+                  : 'text-tcs-muted hover:text-white'
+              }`}
+            >
+              Workspace Studio
+            </button>
+            <button
+              onClick={() => setCurrentTab('consumption')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1.5 ${
+                currentTab === 'consumption'
+                  ? 'bg-tcs-blue text-white shadow-sm'
+                  : 'text-tcs-muted hover:text-white'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-tcs-cyan"></span>
+              <span>Consumo</span>
+            </button>
+            {user?.role === 'ADMIN' && (
               <button
                 onClick={() => setCurrentTab('admin')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
@@ -103,8 +114,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               >
                 Admin Governance
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* User profile badge & logout */}
           {user && (

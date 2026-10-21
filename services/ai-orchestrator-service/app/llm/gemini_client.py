@@ -10,10 +10,10 @@ MODEL_MAP = {
 
 
 class GeminiClient(BaseLLMClient):
-    def __init__(self, api_key: str, mode: str = "balanced"):
+    def __init__(self, api_key: str, mode: str = "balanced", model_name: str = None):
         self.api_key = api_key
         self.mode = mode
-        self.model_name = MODEL_MAP.get(mode, "gemini-flash-latest")
+        self.model_name = model_name if model_name and model_name != "default" else MODEL_MAP.get(mode, "gemini-flash-latest")
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
 
     def test_connection(self) -> bool:

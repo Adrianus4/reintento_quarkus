@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 from app.graph.nodes import (
     design_blueprint_node,
     fetch_governance_node,
@@ -20,6 +20,7 @@ class GenerationWorkflow:
         contract_id: Optional[str],
         token: str,
         llm: BaseLLMClient,
+        config: Optional[Dict[str, Any]] = None,
     ) -> JobState:
         """Run the full multi-agent generation pipeline."""
         state: JobState = {
@@ -28,6 +29,7 @@ class GenerationWorkflow:
             "client_code": client_code,
             "contract_id": contract_id,
             "requirements": requirements,
+            "config": config or {},
             "governance_context": {},
             "blueprint": {},
             "files": {},
@@ -79,4 +81,3 @@ class GenerationWorkflow:
                 state["error"] = str(exc)
 
         return state
-

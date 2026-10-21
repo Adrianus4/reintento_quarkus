@@ -7,9 +7,29 @@ from app.core.database import Base, SessionLocal, engine
 from app.models.gateway_config import GatewayConfig
 
 
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from app.api.v1.api import api_router
+from app.core.config import settings
+from app.core.database import Base, SessionLocal, engine
+from app.models.gateway_config import GatewayConfig
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        try:
+            res = conn.execute(text("PRAGMA table_info(gateway_configurations);"))
+            cols = [row[1] for row in res.fetchall()]
+            if cols and "model_name" not in cols:
+                conn.execute(text("ALTER TABLE gateway_configurations ADD COLUMN model_name VARCHAR(100) DEFAULT 'mock-fast';"))
+                conn.commit()
+        except Exception:
+            pass
+
     # Ensure default gateway config exists
     db = SessionLocal()
     try:
@@ -17,6 +37,7 @@ async def lifespan(app: FastAPI):
         if not config:
             config = GatewayConfig(
                 active_provider="mock",
+                model_name="mock-fast",
                 consumption_mode="balanced",
                 temperature=0.2,
                 max_tokens=8192,

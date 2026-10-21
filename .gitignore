@@ -43,6 +43,7 @@ htmlcov/
 sandbox_runs/
 services/sandbox-verifier-service/sandbox_runs/
 *.zip
+reintento_quarkus-main/
 
 # Environment & IDE
 .env

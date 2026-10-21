@@ -21,9 +21,9 @@ export const AdminPanel: React.FC = () => {
   const [vaultStatus, setVaultStatus] = useState<Record<string, { configured: boolean; masked_key?: string }>>({});
   const [vaultKeyProvider, setVaultKeyProvider] = useState<AiProvider>('GEMINI');
   const [vaultApiKey, setVaultApiKey] = useState('');
-  const [gatewayConfig, setGatewayConfig] = useState<{ active_provider: AiProvider; tier: GatewayTier }>({
+  const [gatewayConfig, setGatewayConfig] = useState<{ active_provider: AiProvider; model_name: string }>({
     active_provider: 'MOCK',
-    tier: 'balanced',
+    model_name: 'mock-fast',
   });
   const [testResult, setTestResult] = useState<{ provider: string; status: string; message: string } | null>(null);
 
@@ -67,7 +67,7 @@ export const AdminPanel: React.FC = () => {
       const gConfig = await api.orchestrator.getGatewayConfig();
       setGatewayConfig({
         active_provider: (gConfig.active_provider ? gConfig.active_provider.toUpperCase() : 'MOCK') as AiProvider,
-        tier: (gConfig.consumption_mode || (gConfig as any).tier || 'balanced') as GatewayTier,
+        model_name: gConfig.model_name || 'gemini-2.5-flash',
       });
     } catch (err: any) {
       showFeedback('error', 'Error al cargar bóveda de IA: ' + err.message);
@@ -195,7 +195,7 @@ export const AdminPanel: React.FC = () => {
     try {
       await api.orchestrator.updateGatewayConfig({
         active_provider: gatewayConfig.active_provider,
-        tier: gatewayConfig.tier,
+        model_name: gatewayConfig.model_name,
       });
       showFeedback('success', 'Configuración de Gateway de IA actualizada');
       await loadVaultAndGateway();
@@ -651,16 +651,18 @@ export const AdminPanel: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-tcs-muted mb-1">Nivel de Consumo / Modelo</label>
-                <select
-                  value={gatewayConfig.tier}
-                  onChange={(e) => setGatewayConfig({ ...gatewayConfig, tier: e.target.value as GatewayTier })}
-                  className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue"
-                >
-                  <option value="economic">Economic (Flash / Rápido - Bajo Costo)</option>
-                  <option value="balanced">Balanced (Equilibrado Arquitectura)</option>
-                  <option value="advanced">Advanced (Pro / Máxima Profundidad)</option>
-                </select>
+                <label className="block text-xs font-medium text-tcs-muted mb-1">Nombre del Modelo LLM</label>
+                <input
+                  type="text"
+                  required
+                  value={gatewayConfig.model_name}
+                  onChange={(e) => setGatewayConfig({ ...gatewayConfig, model_name: e.target.value })}
+                  placeholder="ej. gemini-2.5-flash, deepseek-chat, grok-beta, mock-fast"
+                  className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue font-mono"
+                />
+                <span className="text-[10px] text-tcs-muted mt-1 block">
+                  Ingesta directa del modelo según el proveedor seleccionado (sin intermediarios de modos de consumo).
+                </span>
               </div>
 
               <button

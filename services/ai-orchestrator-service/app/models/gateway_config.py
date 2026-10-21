@@ -9,7 +9,8 @@ class GatewayConfig(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     active_provider = Column(String(50), default="mock", nullable=False)
-    consumption_mode = Column(String(30), default="balanced", nullable=False)
+    model_name = Column(String(100), default="default", nullable=True)
+    consumption_mode = Column(String(30), default="standard", nullable=False)
     temperature = Column(Float, default=0.2, nullable=False)
     max_tokens = Column(Integer, default=8192, nullable=False)
     updated_at = Column(

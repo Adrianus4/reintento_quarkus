@@ -3,13 +3,16 @@
 **Feature Branch**: `001-auth-access-service`  
 **Created**: 2026-10-21  
 **Status**: Draft  
-**Version Alignment**: Constitution `v1.2.0` (Principio IV: Control de Accesos RBAC de 2 Roles, Principio XIII: Puerto 8001, Principio XIV: Zero Preloaded Data)
+**Version Alignment**: Constitution `v1.3.0` (Principio IV: Control de Accesos RBAC de Dos Roles Estrictos, Principio XIII: Puerto 8001, Principio XIV: Zero Preloaded Data)
 
 ---
 
 ## 1. Executive Summary & Purpose
 
-Implementar el microservicio **`auth-access-service`** (Puerto `8001`) para **TCS Intelligent Microservice Factory**. Este servicio gestiona el ciclo de vida de los colaboradores y administradores de TCS, la autenticación mediante tokens JWT seguros, el control de acceso basado estrictamente en **dos roles corporativos (`ADMIN` y `DEVELOPER`)** y la asignación hermética de desarrolladores a las cuentas de clientes autorizadas, garantizando que ningún desarrollador pueda visualizar ni generar microservicios para clientes no asignados.
+Implementar el microservicio **`auth-access-service`** (Puerto `8001`) para **TCS Intelligent Microservice Factory**. Este servicio gestiona el ciclo de vida de los colaboradores y administradores de TCS, la autenticación mediante tokens JWT seguros, el control de acceso basado estrictamente en **dos roles corporativos (`ADMIN` y `DEVELOPER`)** y la asignación hermética de desarrolladores a las cuentas de clientes autorizadas:
+- **Administrador (`ADMIN`)**: Gestiona colaboradores, asigna accesos a cuentas de clientes, gestiona credenciales cifradas y configura la Bóveda de IA y directivas de gobierno.
+- **Desarrollador (`DEVELOPER`)**: Diseña proyectos, ingresa requerimientos, edita código en pantalla y genera microservicios exclusivamente en las cuentas de clientes que tiene asignadas.
+Garantiza que ningún desarrollador pueda visualizar ni generar microservicios para clientes no asignados.
 
 ---
 

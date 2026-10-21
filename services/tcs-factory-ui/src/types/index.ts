@@ -61,7 +61,39 @@ export type GatewayTier = 'economic' | 'balanced' | 'advanced';
 
 export interface AiGatewayConfig {
   active_provider: AiProvider;
-  tier: GatewayTier;
+  model_name?: string;
+  tier?: GatewayTier;
+}
+
+export interface ProviderTelemetry {
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_cost_usd: number;
+  job_count: number;
+}
+
+export interface ConsumptionRecord {
+  job_id: string;
+  client_code: string;
+  provider: string;
+  model: string;
+  status: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  created_at: string;
+}
+
+export interface ConsumptionSummary {
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_cost_usd: number;
+  total_jobs: number;
+  by_provider: Record<string, ProviderTelemetry>;
+  recent_records: ConsumptionRecord[];
 }
 
 export interface VaultCredentialStatus {
@@ -103,6 +135,49 @@ export interface ManifestFileEntry {
   path: string;
   sha256: string;
   size_bytes: number;
+}
+
+export interface CustomEndpoint {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  summary: string;
+}
+
+export interface EntityField {
+  name: string;
+  type: string;
+  required: boolean;
+  isId?: boolean;
+}
+
+export interface EntityDefinition {
+  name: string;
+  tableName?: string;
+  fields: EntityField[];
+}
+
+export interface MicroserviceConfig {
+  client_code: string;
+  architecture_style: string;
+  custom_architecture_notes?: string;
+  security_option: string;
+  jwt_issuer?: string;
+  security_roles?: string[];
+  communication_protocol: string;
+  custom_endpoints?: CustomEndpoint[];
+  database_option: string;
+  database_name?: string;
+  package_prefix: string;
+  artifact_id: string;
+  http_port: number;
+  java_version: string;
+  quarkus_version: string;
+  extensions: string[];
+  custom_extensions?: string[];
+  custom_properties?: string;
+  entities: EntityDefinition[];
+  requirements: string;
+  contract_id?: string;
 }
 
 export interface VerificationManifest {
