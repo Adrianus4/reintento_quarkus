@@ -1,0 +1,122 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TCS Factory AI Orchestrator Service",
+    "description": "Microservice for encrypted credential vault, multi-provider AI gateway, and LangGraph multi-agent microservice generation.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8003",
+      "description": "Local MVP environment"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": { "description": "Service is healthy" }
+        }
+      }
+    },
+    "/api/v1/vault/keys": {
+      "get": {
+        "summary": "List stored AI credentials (masked)",
+        "operationId": "listVaultKeys",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of masked credentials" }
+        }
+      },
+      "post": {
+        "summary": "Save or rotate provider API Key (Admin only)",
+        "operationId": "saveVaultKey",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Key encrypted and saved" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+    "/api/v1/vault/test-connection": {
+      "post": {
+        "summary": "Test connection to a configured provider",
+        "operationId": "testConnection",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Connection test result" }
+        }
+      }
+    },
+    "/api/v1/ai-gateway/config": {
+      "get": {
+        "summary": "Get current AI gateway configuration",
+        "operationId": "getGatewayConfig",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Gateway configuration details" }
+        }
+      },
+      "put": {
+        "summary": "Update active provider and consumption mode (Admin only)",
+        "operationId": "updateGatewayConfig",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Gateway updated in hot-switch mode" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/jobs": {
+      "post": {
+        "summary": "Start microservice generation job",
+        "operationId": "startJob",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Job created and execution started" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/jobs/{job_id}": {
+      "get": {
+        "summary": "Get generation job status, blueprint, files, and telemetry",
+        "operationId": "getJob",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Job details" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/jobs/{job_id}/files": {
+      "patch": {
+        "summary": "Edit or add files in the generated solution (Human-in-the-loop)",
+        "operationId": "editJobFiles",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Files updated" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/jobs/{job_id}/approve": {
+      "post": {
+        "summary": "Approve generated microservice for verification sandbox",
+        "operationId": "approveJob",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Job approved" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
+

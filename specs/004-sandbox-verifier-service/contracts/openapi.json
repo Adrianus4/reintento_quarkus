@@ -1,0 +1,86 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TCS Factory Sandbox Verifier Service",
+    "description": "Microservice for ephemeral compilation, Maven test execution, SHA-256 verification manifest, and ZIP packaging.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8004",
+      "description": "Local MVP environment"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": { "description": "Service is healthy" }
+        }
+      }
+    },
+    "/api/v1/verifier/runs": {
+      "post": {
+        "summary": "Materialize files and execute verification run",
+        "operationId": "createVerificationRun",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Run created and executed" },
+          "400": { "description": "Path traversal or invalid file paths" }
+        }
+      }
+    },
+    "/api/v1/verifier/runs/{run_id}": {
+      "get": {
+        "summary": "Get run status and compiler diagnostics",
+        "operationId": "getVerificationRun",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Run details" },
+          "404": { "description": "Run not found" }
+        }
+      }
+    },
+    "/api/v1/verifier/runs/{run_id}/manifest": {
+      "get": {
+        "summary": "Get cryptographic SHA-256 manifest",
+        "operationId": "getManifest",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "SHA-256 manifest" },
+          "404": { "description": "Run not found" }
+        }
+      }
+    },
+    "/api/v1/verifier/runs/{run_id}/download": {
+      "get": {
+        "summary": "Download verified microservice as ZIP",
+        "operationId": "downloadZip",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "ZIP file binary",
+            "content": {
+              "application/zip": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "404": { "description": "ZIP archive not ready or run not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,220 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TCS Factory Auth & Access Control Service",
+    "description": "Microservice for enterprise authentication, strictly 2-role RBAC (ADMIN, DEVELOPER), and client account isolation.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8001",
+      "description": "Local MVP environment"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "service": { "type": "string", "example": "auth-access-service" },
+                    "port": { "type": "integer", "example": 8001 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/setup-admin": {
+      "post": {
+        "summary": "Initialize first Admin (Only usable on zero preloaded state)",
+        "operationId": "setupAdmin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "full_name"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "full_name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Admin successfully created" },
+          "409": { "description": "Setup already completed (users already exist)" }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Authenticate user and issue JWT",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, JWT returned" },
+          "401": { "description": "Invalid credentials or inactive account" }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "summary": "Verify token validity and permissions for inter-service communication",
+        "operationId": "verifyToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token"],
+                "properties": {
+                  "token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Verification result returned" }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "Get authenticated user profile",
+        "operationId": "getCurrentUser",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User profile with assigned clients" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/auth/me/clients": {
+      "get": {
+        "summary": "Get list of authorized client codes for current user",
+        "operationId": "getCurrentUserClients",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of client codes or wildcard for Admin" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "summary": "List users (Admin only)",
+        "operationId": "listUsers",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of users" },
+          "403": { "description": "Forbidden (Requires ADMIN role)" }
+        }
+      },
+      "post": {
+        "summary": "Create user (Admin only)",
+        "operationId": "createUser",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "full_name", "role"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "full_name": { "type": "string" },
+                  "role": { "type": "string", "enum": ["ADMIN", "DEVELOPER"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created" },
+          "403": { "description": "Forbidden" },
+          "422": { "description": "Validation error or role mismatch" }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/assigned-clients": {
+      "put": {
+        "summary": "Assign authorized client codes to user (Admin only)",
+        "operationId": "assignClientsToUser",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["client_codes"],
+                "properties": {
+                  "client_codes": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Client assignments updated" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "User not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
+

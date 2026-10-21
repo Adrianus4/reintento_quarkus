@@ -1,0 +1,122 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TCS Factory Client Governance Service",
+    "description": "Microservice for managing client accounts, versioning technical directives, and cataloging OpenAPI contracts.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8002",
+      "description": "Local MVP environment"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": { "description": "Service is healthy" }
+        }
+      }
+    },
+    "/api/v1/clients": {
+      "get": {
+        "summary": "List client profiles accessible to current user",
+        "operationId": "listClients",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of accessible client profiles" }
+        }
+      },
+      "post": {
+        "summary": "Create new client profile (Admin only)",
+        "operationId": "createClient",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Client profile created" },
+          "403": { "description": "Forbidden" },
+          "409": { "description": "Client code already exists" }
+        }
+      }
+    },
+    "/api/v1/clients/{client_code}": {
+      "get": {
+        "summary": "Get specific client profile",
+        "operationId": "getClientByCode",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Client profile details" },
+          "403": { "description": "Forbidden (No access to client)" },
+          "404": { "description": "Client not found" }
+        }
+      }
+    },
+    "/api/v1/clients/{client_code}/directives": {
+      "get": {
+        "summary": "List active directives for a client",
+        "operationId": "listDirectives",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of technical directives" }
+        }
+      },
+      "post": {
+        "summary": "Create a new technical directive (Admin only)",
+        "operationId": "createDirective",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Directive created" }
+        }
+      }
+    },
+    "/api/v1/clients/{client_code}/contracts": {
+      "get": {
+        "summary": "List OpenAPI contracts for a client",
+        "operationId": "listContracts",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of contracts" }
+        }
+      },
+      "post": {
+        "summary": "Upload and validate an OpenAPI contract",
+        "operationId": "uploadContract",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Contract validated and stored" },
+          "422": { "description": "Invalid OpenAPI structure" }
+        }
+      }
+    },
+    "/api/v1/clients/{client_code}/governance-context": {
+      "get": {
+        "summary": "Consolidated governance bundle for AI generation engine",
+        "operationId": "getGovernanceContext",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Consolidated governance context bundle" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
+
