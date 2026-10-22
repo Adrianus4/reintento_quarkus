@@ -51,6 +51,18 @@ def get_verified_user(
     )
 
 
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+) -> Dict[str, Any]:
+    """Verify bearer token if present, otherwise return anonymous user dict."""
+    if not credentials or not credentials.credentials:
+        return {"user_id": "anonymous", "role": "DEVELOPER", "assigned_clients": ["*"]}
+    local_data = _decode_jwt_local(credentials.credentials)
+    if local_data and local_data.get("valid"):
+        return local_data
+    return {"user_id": "anonymous", "role": "DEVELOPER", "assigned_clients": ["*"]}
+
+
 def require_admin(user: Dict[str, Any] = Depends(get_verified_user)) -> Dict[str, Any]:
     """Ensure caller has corporate ADMIN role."""
     if user.get("role") != "ADMIN":

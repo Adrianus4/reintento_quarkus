@@ -2,7 +2,7 @@ import json
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
-from app.api.deps import get_verified_user, verify_client_access
+from app.api.deps import get_verified_user, get_optional_user, verify_client_access
 from app.core.database import get_db
 from app.graph.workflow import GenerationWorkflow
 from app.llm.factory import LLMClientFactory
@@ -294,3 +294,143 @@ def approve_job(
     db.refresh(job)
     return _format_job_response(job)
 
+
+
+@router.post("/infer-spec")
+def infer_microservice_spec(
+    payload: dict,
+    user: dict = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Analyze natural language requirements and automatically structure all 7 architectural phases."""
+    client_code = payload.get("client_code", "bcp").lower()
+    requirements = payload.get("requirements", "").strip()
+    req_lower = requirements.lower()
+
+    # Determine domain from requirement
+    if any(k in req_lower for k in ["poliza", "seguro", "insurance", "siniestro", "asegurad"]):
+        domain_name = "polizas"
+        entity_name = "Policy"
+        table_name = "policies"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "policyNumber", "type": "String", "required": True},
+            {"name": "holderDni", "type": "String", "required": True},
+            {"name": "insuredVehiclePlate", "type": "String", "required": True},
+            {"name": "premiumAmount", "type": "BigDecimal", "required": True},
+            {"name": "status", "type": "String", "required": True},
+            {"name": "startDate", "type": "LocalDateTime", "required": True},
+        ]
+        summary_op = "Emisión y evaluación de pólizas de seguro vehicular"
+    elif any(k in req_lower for k in ["tarjeta", "credito", "card", "linea", "plastico"]):
+        domain_name = "tarjetas"
+        entity_name = "CreditCard"
+        table_name = "credit_cards"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "cardNumberMasked", "type": "String", "required": True},
+            {"name": "holderName", "type": "String", "required": True},
+            {"name": "holderDni", "type": "String", "required": True},
+            {"name": "creditLimit", "type": "BigDecimal", "required": True},
+            {"name": "status", "type": "String", "required": True},
+            {"name": "createdAt", "type": "LocalDateTime", "required": True},
+        ]
+        summary_op = "Apertura y gestión de tarjetas de crédito y asignación de límites"
+    elif any(k in req_lower for k in ["prestamo", "loan", "hipotec", "financiamiento", "credito"]):
+        domain_name = "prestamos"
+        entity_name = "Loan"
+        table_name = "loans"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "applicantDni", "type": "String", "required": True},
+            {"name": "amount", "type": "BigDecimal", "required": True},
+            {"name": "interestRate", "type": "BigDecimal", "required": True},
+            {"name": "termMonths", "type": "Integer", "required": True},
+            {"name": "status", "type": "String", "required": True},
+            {"name": "createdAt", "type": "LocalDateTime", "required": True},
+        ]
+        summary_op = "Originación y cálculo de cuotas de préstamos"
+    elif any(k in req_lower for k in ["pago", "payment", "transfer", "giro"]):
+        domain_name = "pagos"
+        entity_name = "Payment"
+        table_name = "payments"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "sourceAccount", "type": "String", "required": True},
+            {"name": "destinationAccount", "type": "String", "required": True},
+            {"name": "amount", "type": "BigDecimal", "required": True},
+            {"name": "currency", "type": "String", "required": True},
+            {"name": "status", "type": "String", "required": True},
+            {"name": "timestamp", "type": "LocalDateTime", "required": True},
+        ]
+        summary_op = "Procesamiento inmediato de pagos y transferencias"
+    elif any(k in req_lower for k in ["cliente", "customer", "usuario", "onboarding"]):
+        domain_name = "clientes"
+        entity_name = "Customer"
+        table_name = "customers"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "dni", "type": "String", "required": True},
+            {"name": "fullName", "type": "String", "required": True},
+            {"name": "email", "type": "String", "required": True},
+            {"name": "phone", "type": "String", "required": True},
+            {"name": "status", "type": "String", "required": True},
+        ]
+        summary_op = "Onboarding y gestión centralizada de clientes"
+    else:
+        domain_name = "operaciones"
+        entity_name = "Operation"
+        table_name = "operations"
+        fields = [
+            {"name": "id", "type": "UUID", "required": True, "isId": True},
+            {"name": "operationCode", "type": "String", "required": True},
+            {"name": "description", "type": "String", "required": True},
+            {"name": "amount", "type": "BigDecimal", "required": True},
+            {"name": "status", "type": "String", "required": True},
+            {"name": "createdAt", "type": "LocalDateTime", "required": True},
+        ]
+        summary_op = "Gestión transaccional y registro de operaciones"
+
+    return {
+        "artifact_id": f"{client_code}-{domain_name}-service",
+        "package_prefix": f"pe.com.{client_code}.{domain_name}",
+        "http_port": 8080,
+        "java_version": "21",
+        "quarkus_version": "3.15.1",
+        "build_tool": "maven",
+        "architecture_style": "Hexagonal",
+        "custom_architecture_notes": f"Arquitectura hexagonal para {client_code.upper()} con puertos in/out, modelos inmutables y trazabilidad transaccional.",
+        "security_option": "JWT",
+        "jwt_issuer": f"https://auth.via{client_code}.com",
+        "security_roles": ["ADMIN", "OPERATOR", "AUDITOR"],
+        "database_option": "SQLSERVER_PANACHE" if client_code == "bcp" else "POSTGRESQL_PANACHE",
+        "database_name": f"{client_code}_{domain_name}_db",
+        "entities": [
+            {
+                "name": entity_name,
+                "tableName": table_name,
+                "fields": fields
+            }
+        ],
+        "custom_endpoints": [
+            {
+                "method": "POST",
+                "path": f"/api/v1/{domain_name}",
+                "summary": f"Registrar nuevo {entity_name} con validaciones"
+            },
+            {
+                "method": "GET",
+                "path": f"/api/v1/{domain_name}/{{id}}",
+                "summary": f"Consultar {entity_name} por identificador UUID"
+            },
+            {
+                "method": "GET",
+                "path": f"/api/v1/{domain_name}",
+                "summary": f"Listar {entity_name}s con filtros y paginación"
+            }
+        ],
+        "design_patterns": ["REPOSITORY", "BUILDER", "OUTBOX"],
+        "event_broker": "kafka",
+        "event_topic_out": f"pe.com.{client_code}.{domain_name}.events.v1",
+        "event_topic_in": f"pe.com.{client_code}.notifications.events.v1",
+    }

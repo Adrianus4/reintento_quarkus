@@ -127,6 +127,14 @@ def design_blueprint_node(state: JobState, llm: BaseLLMClient) -> JobState:
         parsed["security_option"] = cfg["security_option"]
     if cfg.get("database_option"):
         parsed["database_option"] = cfg["database_option"]
+    if cfg.get("build_tool"):
+        parsed["build_tool"] = cfg["build_tool"]
+    if cfg.get("artifact_id"):
+        parsed["artifact_id"] = cfg["artifact_id"]
+    if cfg.get("quarkus_version"):
+        parsed["quarkus_version"] = cfg["quarkus_version"]
+    if cfg.get("design_patterns"):
+        parsed["design_patterns"] = cfg["design_patterns"]
     if cfg.get("extensions"):
         parsed["user_extensions"] = cfg["extensions"]
 

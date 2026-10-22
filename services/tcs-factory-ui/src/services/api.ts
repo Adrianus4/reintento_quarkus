@@ -239,6 +239,11 @@ export const api = {
     },
     getConsumptionTelemetry: () =>
       request<any>(PORTS.ORCHESTRATOR, '/orchestrator/consumption'),
+    inferSpec: (data: { client_code: string; requirements: string }) =>
+      request<any>(PORTS.ORCHESTRATOR, '/orchestrator/infer-spec', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     createJob: async (data: {
       client_code: string;
       raw_requirement?: string;

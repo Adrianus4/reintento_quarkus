@@ -20,35 +20,26 @@ export const StudioPanel: React.FC = () => {
   const [activeClient, setActiveClient] = useState<ClientProfile | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [contracts, setContracts] = useState<OpenApiSpecSummary[]>([]);
-  const [selectedContractId, setSelectedContractId] = useState<string>('');
 
   // 7-Phase Stepper: 1 to 7
   const [activePhase, setActivePhase] = useState<number>(1);
+  const [isInferring, setIsInferring] = useState<boolean>(false);
+  const [inferSuccessMessage, setInferSuccessMessage] = useState<string | null>(null);
 
-  // --- FASE 1: Identidad & Stack Base ---
+  // --- FASE 1: Identidad & Stack Base (Clean by default) ---
+  const [requirementPrompt, setRequirementPrompt] = useState<string>('');
   const [buildTool, setBuildTool] = useState<'maven' | 'gradle'>('maven');
   const [javaVersion, setJavaVersion] = useState<string>('21');
   const [quarkusVersion, setQuarkusVersion] = useState<string>('3.15.1');
-  const [artifactId, setArtifactId] = useState<string>('bcp-loans-service');
-  const [packagePrefix, setPackagePrefix] = useState<string>('pe.com.bcp');
+  const [artifactId, setArtifactId] = useState<string>('');
+  const [packagePrefix, setPackagePrefix] = useState<string>('');
   const [httpPort, setHttpPort] = useState<number>(8080);
   const [packagingType, setPackagingType] = useState<'jvm' | 'native'>('jvm');
 
-  // General requirement prompt (guides AI suggestions)
-  const [requirementPrompt, setRequirementPrompt] = useState<string>(
-    'Microservicio para originación de préstamos con evaluación crediticia, cálculo de cronograma y notificación de eventos.'
-  );
-
   // --- FASE 2: Arquetipo, Patrones de Diseño & Convenciones ---
   const [archStyle, setArchStyle] = useState<string>('Hexagonal');
-  const [customArchNotes, setCustomArchNotes] = useState<string>(
-    'Separación estricta entre puertos in/out, adaptadores REST e inmutabilidad en modelos de dominio.'
-  );
-  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([
-    'REPOSITORY',
-    'BUILDER',
-    'OUTBOX',
-  ]);
+  const [customArchNotes, setCustomArchNotes] = useState<string>('');
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>(['REPOSITORY', 'BUILDER']);
   const [variableNamingStyle, setVariableNamingStyle] = useState<'camelCase' | 'snake_case'>('camelCase');
   const [useCaseSuffix, setUseCaseSuffix] = useState<string>('UseCase');
   const [portSuffix, setPortSuffix] = useState<string>('Port');
@@ -57,53 +48,23 @@ export const StudioPanel: React.FC = () => {
 
   // --- FASE 3: Seguridad & Gobernanza ---
   const [securityOption, setSecurityOption] = useState<string>('JWT');
-  const [jwtIssuer, setJwtIssuer] = useState<string>('https://auth.viabcp.com');
+  const [jwtIssuer, setJwtIssuer] = useState<string>('');
   const [securityRoles, setSecurityRoles] = useState<string>('ADMIN, OPERATOR, AUDITOR');
   const [vaultProvider, setVaultProvider] = useState<string>('Azure Key Vault');
 
   // --- FASE 4: Persistencia & Modelado de Entidades ---
-  const [databaseOption, setDatabaseOption] = useState<string>('POSTGRESQL_PANACHE');
-  const [databaseName, setDatabaseName] = useState<string>('bcp_loans_db');
-  const [entities, setEntities] = useState<EntityDefinition[]>([
-    {
-      name: 'Loan',
-      tableName: 'loans',
-      fields: [
-        { name: 'id', type: 'UUID', required: true, isId: true },
-        { name: 'applicantDni', type: 'String', required: true },
-        { name: 'amount', type: 'BigDecimal', required: true },
-        { name: 'interestRate', type: 'BigDecimal', required: true },
-        { name: 'termMonths', type: 'Integer', required: true },
-        { name: 'status', type: 'String', required: true },
-        { name: 'createdAt', type: 'LocalDateTime', required: true },
-      ],
-    },
-  ]);
+  const [databaseOption, setDatabaseOption] = useState<string>('SQLSERVER_PANACHE');
+  const [databaseName, setDatabaseName] = useState<string>('');
+  const [entities, setEntities] = useState<EntityDefinition[]>([]);
 
   // --- FASE 5: Contratos de APIs & Endpoints Reactivos ---
   const [commProtocol, setCommProtocol] = useState<string>('REST_REACTIVE');
-  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([
-    {
-      method: 'POST',
-      path: '/api/v1/loans',
-      summary: 'Crear solicitud de préstamo con evaluación crediticia y emisión de evento',
-    },
-    {
-      method: 'GET',
-      path: '/api/v1/loans/{id}',
-      summary: 'Consultar estado y detalle de préstamo por identificador',
-    },
-    {
-      method: 'GET',
-      path: '/api/v1/loans/applicant/{dni}',
-      summary: 'Consultar préstamos activos asociados al DNI del solicitante',
-    },
-  ]);
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([]);
 
   // --- FASE 6: Eventos & Comunicación Asíncrona ---
   const [eventBroker, setEventBroker] = useState<'kafka' | 'service_bus' | 'none'>('kafka');
-  const [eventTopicOut, setEventTopicOut] = useState<string>('pe.com.bcp.loans.events.v1');
-  const [eventTopicIn, setEventTopicIn] = useState<string>('pe.com.bcp.scoring.events.v1');
+  const [eventTopicOut, setEventTopicOut] = useState<string>('');
+  const [eventTopicIn, setEventTopicIn] = useState<string>('');
 
   // Quarkus Extensions
   const [selectedExtensions, setSelectedExtensions] = useState<string[]>([
@@ -114,9 +75,7 @@ export const StudioPanel: React.FC = () => {
     'quarkus-micrometer-registry-prometheus',
   ]);
   const [customExtensionsText, setCustomExtensionsText] = useState<string>('quarkus-smallrye-fault-tolerance');
-  const [customPropertiesText, setCustomPropertiesText] = useState<string>(
-    'bcp.loans.approval-limit=100000.00\nbcp.audit.async-logging=true\nbcp.idempotency.ttl-seconds=3600'
-  );
+  const [customPropertiesText, setCustomPropertiesText] = useState<string>('');
 
   // Execution & Job State
   const [currentJob, setCurrentJob] = useState<OrchestrationJob | null>(null);
@@ -155,11 +114,19 @@ export const StudioPanel: React.FC = () => {
     setSelectedClient(code);
     setPackagePrefix(client.package_prefix || `pe.com.${code}`);
     setJavaVersion(client.java_version || '21');
-    setArtifactId(`${code}-loans-service`);
-    setDatabaseName(`${code}_loans_db`);
+    setArtifactId(`${code}-nuevo-servicio`);
+    setDatabaseName(`${code}_db`);
     setJwtIssuer(`https://auth.via${code}.com`);
+    setRequirementPrompt('');
+    setEntities([]);
+    setCustomEndpoints([]);
+    setCustomArchNotes('');
+    setCustomPropertiesText('');
+    setEventTopicOut(`pe.com.${code}.events.v1`);
+    setEventTopicIn(`pe.com.${code}.notifications.v1`);
     setActivePhase(1);
     setError(null);
+    setInferSuccessMessage(null);
   };
 
   // Reset to clean blank slate
@@ -171,99 +138,92 @@ export const StudioPanel: React.FC = () => {
     setCustomEndpoints([]);
     setCustomArchNotes('');
     setCustomPropertiesText('');
-    setSelectedPatterns(['REPOSITORY']);
+    setSelectedPatterns(['REPOSITORY', 'BUILDER']);
     setEventBroker('none');
     setCurrentJob(null);
     setError(null);
+    setInferSuccessMessage(null);
     setActivePhase(1);
   };
 
-  // Load Reference BCP Sample
+  // AI INFERENCE: Analyze Natural Language Prompt & Auto-Structure All 7 Phases
+  const handleInferSpecWithAI = async () => {
+    if (!requirementPrompt.trim()) {
+      setError('Escribe primero el requerimiento en lenguaje natural para que la IA pueda estructurar las 7 fases.');
+      return;
+    }
+
+    setError(null);
+    setIsInferring(true);
+    setInferSuccessMessage(null);
+
+    try {
+      const res = await api.orchestrator.inferSpec({
+        client_code: selectedClient || 'bcp',
+        requirements: requirementPrompt.trim(),
+      });
+
+      if (res.artifact_id) setArtifactId(res.artifact_id);
+      if (res.package_prefix) setPackagePrefix(res.package_prefix);
+      if (res.database_name) setDatabaseName(res.database_name);
+      if (res.database_option) setDatabaseOption(res.database_option);
+      if (res.architecture_style) setArchStyle(res.architecture_style);
+      if (res.custom_architecture_notes) setCustomArchNotes(res.custom_architecture_notes);
+      if (res.design_patterns && Array.isArray(res.design_patterns)) setSelectedPatterns(res.design_patterns);
+      if (res.entities && Array.isArray(res.entities)) setEntities(res.entities);
+      if (res.custom_endpoints && Array.isArray(res.custom_endpoints)) setCustomEndpoints(res.custom_endpoints);
+      if (res.event_broker) setEventBroker(res.event_broker);
+      if (res.event_topic_out) setEventTopicOut(res.event_topic_out);
+      if (res.event_topic_in) setEventTopicIn(res.event_topic_in);
+
+      setInferSuccessMessage(
+        `✓ La IA analizó tu pedido con éxito: Estructuró ${res.entities?.length || 0} entidades, ${res.custom_endpoints?.length || 0} endpoints y patrones recomendados. Puedes revisar y editar cada fase.`
+      );
+    } catch (err: any) {
+      setError('Error al analizar requerimiento con IA: ' + err.message);
+    } finally {
+      setIsInferring(false);
+    }
+  };
+
+  // Quick Preset Sample for BCP
   const handleLoadBcpSample = () => {
     setBuildTool('maven');
     setJavaVersion('21');
     setQuarkusVersion('3.15.1');
-    setArtifactId('bcp-transfers-service');
-    setPackagePrefix('pe.com.bcp');
-    setDatabaseName('bcp_transfers_db');
+    setArtifactId('bcp-tarjetas-service');
+    setPackagePrefix('pe.com.bcp.tarjetas');
+    setDatabaseName('bcp_tarjetas_db');
     setJwtIssuer('https://auth.viabcp.com');
     setArchStyle('Hexagonal');
-    setSelectedPatterns(['REPOSITORY', 'BUILDER', 'OUTBOX', 'SAGA']);
+    setSelectedPatterns(['REPOSITORY', 'BUILDER', 'OUTBOX', 'STRATEGY']);
     setRequirementPrompt(
-      'Implementar microservicio de transferencias bancarias y gestión de cuentas para BCP con validación de saldos, registro de auditoría, control de idempotencia y persistencia transaccional ACID.'
+      'Microservicio para emisión y gestión de tarjetas de crédito con asignación de límites, registro de movimientos y publicación de eventos transaccionales en Kafka.'
     );
     setCustomArchNotes('Arquitectura hexagonal bancaria para BCP con separación estricta de puertos/adaptadores y trazabilidad transaccional.');
     setEntities([
       {
-        name: 'Transfer',
-        tableName: 'transfers',
+        name: 'CreditCard',
+        tableName: 'credit_cards',
         fields: [
           { name: 'id', type: 'UUID', required: true, isId: true },
-          { name: 'sourceAccount', type: 'String', required: true },
-          { name: 'destinationAccount', type: 'String', required: true },
-          { name: 'amount', type: 'BigDecimal', required: true },
-          { name: 'currency', type: 'String', required: true },
+          { name: 'cardNumberMasked', type: 'String', required: true },
+          { name: 'holderName', type: 'String', required: true },
+          { name: 'holderDni', type: 'String', required: true },
+          { name: 'creditLimit', type: 'BigDecimal', required: true },
           { name: 'status', type: 'String', required: true },
           { name: 'createdAt', type: 'LocalDateTime', required: true },
         ],
       },
     ]);
     setCustomEndpoints([
-      { method: 'POST', path: '/api/v1/transfers', summary: 'Ejecutar transferencia inmediata con validación de saldo' },
-      { method: 'GET', path: '/api/v1/transfers/{id}', summary: 'Consultar estado y detalle de transferencia por UUID' },
+      { method: 'POST', path: '/api/v1/tarjetas', summary: 'Emitir nueva tarjeta de crédito con scoring' },
+      { method: 'GET', path: '/api/v1/tarjetas/{id}', summary: 'Consultar estado y límite disponible por UUID' },
+      { method: 'GET', path: '/api/v1/tarjetas', summary: 'Listar tarjetas activas del cliente' },
     ]);
     setEventBroker('kafka');
-    setEventTopicOut('pe.com.bcp.transfers.events.v1');
-  };
-
-  // AI Suggestion Handler for Current Phase
-  const handleAiSuggestCurrentPhase = () => {
-    if (activePhase === 1) {
-      setBuildTool('maven');
-      setJavaVersion('21');
-      setQuarkusVersion('3.15.1');
-      setPackagingType('jvm');
-      setArtifactId(`${selectedClient}-service`);
-    } else if (activePhase === 2) {
-      setArchStyle('Hexagonal');
-      setSelectedPatterns(['REPOSITORY', 'BUILDER', 'OUTBOX', 'STRATEGY']);
-      setVariableNamingStyle('camelCase');
-      setUseCaseSuffix('UseCase');
-      setPortSuffix('Port');
-      setAdapterSuffix('Adapter');
-      setExceptionHandlingStrategy('Global ServerExceptionMapper (RFC-7807)');
-    } else if (activePhase === 3) {
-      setSecurityOption('JWT');
-      setJwtIssuer(`https://auth.via${selectedClient}.com`);
-      setSecurityRoles('ADMIN, OPERATOR, AUDITOR');
-      setVaultProvider('Azure Key Vault');
-    } else if (activePhase === 4) {
-      setDatabaseOption('POSTGRESQL_PANACHE');
-      setDatabaseName(`${selectedClient}_service_db`);
-      setEntities([
-        {
-          name: 'Operation',
-          tableName: 'operations',
-          fields: [
-            { name: 'id', type: 'UUID', required: true, isId: true },
-            { name: 'code', type: 'String', required: true },
-            { name: 'amount', type: 'BigDecimal', required: true },
-            { name: 'status', type: 'String', required: true },
-            { name: 'timestamp', type: 'LocalDateTime', required: true },
-          ],
-        },
-      ]);
-    } else if (activePhase === 5) {
-      setCommProtocol('REST_REACTIVE');
-      setCustomEndpoints([
-        { method: 'POST', path: `/api/v1/${selectedClient}-operations`, summary: 'Crear operación con validación y emisión de eventos' },
-        { method: 'GET', path: `/api/v1/${selectedClient}-operations/{id}`, summary: 'Consultar operación por UUID' },
-      ]);
-    } else if (activePhase === 6) {
-      setEventBroker('kafka');
-      setEventTopicOut(`pe.com.${selectedClient}.operations.events.v1`);
-      setEventTopicIn(`pe.com.${selectedClient}.notifications.events.v1`);
-    }
+    setEventTopicOut('pe.com.bcp.tarjetas.events.v1');
+    setInferSuccessMessage('✓ Plantilla de referencia BCP cargada. Puedes personalizarla libremente.');
   };
 
   // Final Action: Fabricate Microservice with LangGraph
@@ -361,7 +321,8 @@ export const StudioPanel: React.FC = () => {
         tableName: `${newName.toLowerCase()}s`,
         fields: [
           { name: 'id', type: 'UUID', required: true, isId: true },
-          { name: 'name', type: 'String', required: true },
+          { name: 'code', type: 'String', required: true },
+          { name: 'amount', type: 'BigDecimal', required: true },
           { name: 'status', type: 'String', required: true },
           { name: 'createdAt', type: 'LocalDateTime', required: true },
         ],
@@ -375,7 +336,7 @@ export const StudioPanel: React.FC = () => {
       ...customEndpoints,
       {
         method: 'POST',
-        path: `/api/v1/operation-${customEndpoints.length + 1}`,
+        path: `/api/v1/operacion-${customEndpoints.length + 1}`,
         summary: 'Operación transaccional con validación',
       },
     ]);
@@ -407,13 +368,13 @@ export const StudioPanel: React.FC = () => {
   const isBcp = selectedClient === 'bcp';
 
   const PHASES = [
-    { num: 1, title: 'Stack & Build Tool', desc: 'Maven/Gradle, Java 21, Quarkus' },
-    { num: 2, title: 'Arquetipo & Patrones', desc: 'Hexagonal, Clean, Saga, Outbox' },
+    { num: 1, title: 'Requerimiento & Stack Base', desc: 'Pedido en lenguaje natural, Maven/Gradle, Java 21' },
+    { num: 2, title: 'Arquetipo & Patrones', desc: 'Hexagonal, Clean, Saga, Outbox, Builder' },
     { num: 3, title: 'Seguridad & Tokens', desc: 'SmallRye JWT, RBAC, Key Vault' },
     { num: 4, title: 'Persistencia & Entidades', desc: 'Panache ORM, SQL Server / Postgres' },
     { num: 5, title: 'APIs & Endpoints', desc: 'RESTEasy Reactive, OpenAPI, Swagger' },
     { num: 6, title: 'Eventos & Kafka', desc: 'Reactive Messaging, Outbox Tópicos' },
-    { num: 7, title: 'Lógica & Fabricación', desc: 'Visualizar flujo y generar código' },
+    { num: 7, title: 'Lógica & Fabricación', desc: 'Visualizar flujo y fabricar código con IA' },
   ];
 
   return (
@@ -441,7 +402,7 @@ export const StudioPanel: React.FC = () => {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-mono text-tcs-muted">
-              <span className="text-tcs-cyan font-semibold">{packagePrefix}</span>
+              <span className="text-tcs-cyan font-semibold">{packagePrefix || `pe.com.${selectedClient}`}</span>
               <span>•</span>
               <span className="text-white">Build: {buildTool.toUpperCase()}</span>
               <span>•</span>
@@ -496,6 +457,19 @@ export const StudioPanel: React.FC = () => {
         </div>
       )}
 
+      {inferSuccessMessage && (
+        <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs flex items-center justify-between">
+          <span>{inferSuccessMessage}</span>
+          <button
+            type="button"
+            onClick={() => setInferSuccessMessage(null)}
+            className="text-emerald-400 hover:text-white ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 2. Interactive 7-Phase Stepper Navigator */}
       <div className="bg-tcs-card border border-tcs-border rounded-2xl p-4 shadow-xl">
         <div className="text-xs font-bold uppercase tracking-wider text-tcs-muted mb-3 px-1 flex items-center justify-between">
@@ -547,7 +521,7 @@ export const StudioPanel: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 cols): Phase Editor */}
         <div className="lg:col-span-2 bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-6">
-          {/* Header of Active Phase with AI Suggest button */}
+          {/* Header of Active Phase with Step Title */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-tcs-border/60 pb-4">
             <div>
               <div className="flex items-center space-x-2">
@@ -562,25 +536,59 @@ export const StudioPanel: React.FC = () => {
                 {PHASES[activePhase - 1].desc}
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={handleAiSuggestCurrentPhase}
-              className="px-3.5 py-1.5 bg-tcs-dark hover:bg-tcs-surface border border-tcs-cyan/40 hover:border-tcs-cyan rounded-xl text-xs font-bold text-tcs-cyan flex items-center space-x-1.5 transition-all shadow-sm"
-              title="Autocompletar sugerencias óptimas de IA para esta fase basadas en el cliente BCP"
-            >
-              <span>✨ Sugerir con IA para esta Fase</span>
-            </button>
           </div>
 
           {/* ======================================================== */}
-          {/* FASE 1: STACK BASE & HERRAMIENTA DE CONSTRUCCIÓN         */}
+          {/* FASE 1: REQUERIMIENTO DEL USUARIO & STACK BASE           */}
           {/* ======================================================== */}
           {activePhase === 1 && (
-            <div className="space-y-5 animate-fadeIn">
+            <div className="space-y-6 animate-fadeIn">
+              {/* PRIMARY PROMPT INPUT: THE HEART OF USER INTENT */}
+              <div className="p-4 bg-gradient-to-br from-tcs-navy via-tcs-dark to-tcs-navy border-2 border-tcs-cyan/40 rounded-2xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-tcs-cyan animate-pulse"></span>
+                    <span>1.1. Describe tu Pedido de Microservicio en Lenguaje Natural</span>
+                  </label>
+                  <span className="text-[11px] text-tcs-muted font-mono">Impulsado por IA</span>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={requirementPrompt}
+                  onChange={(e) => setRequirementPrompt(e.target.value)}
+                  placeholder="Describe lo que debe hacer tu microservicio... ej: Microservicio para emisión y cotización de pólizas de seguro vehicular con cobro recurrente, cálculo de primas y alertas a Kafka."
+                  className="w-full p-3.5 bg-tcs-dark border border-tcs-border rounded-xl text-xs sm:text-sm text-white focus:border-tcs-cyan focus:outline-none leading-relaxed placeholder:text-tcs-muted/60"
+                />
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+                  <p className="text-[11px] text-tcs-muted">
+                    Presiona el botón para que la IA deduzca las entidades, endpoints, patrones y base de datos:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleInferSpecWithAI}
+                    disabled={isInferring || !requirementPrompt.trim()}
+                    className="px-5 py-2.5 bg-gradient-to-r from-tcs-blue to-tcs-cyan hover:from-blue-600 hover:to-cyan-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-cyan-900/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-40"
+                  >
+                    {isInferring ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>Analizando Pedido con IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✨ Analizar Pedido y Estructurar Fases con IA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Build Tool Selection */}
               <div>
                 <label className="block text-xs font-bold text-white mb-2">
-                  1.1. Herramienta de Construcción (Build Tool)
+                  1.2. Herramienta de Construcción (Build Tool)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
@@ -659,12 +667,12 @@ export const StudioPanel: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-white mb-1">Artifact ID (Nombre)</label>
+                  <label className="block text-xs font-bold text-white mb-1">Artifact ID (Nombre Microservicio)</label>
                   <input
                     type="text"
                     value={artifactId}
                     onChange={(e) => setArtifactId(e.target.value)}
-                    placeholder="ej. bcp-loans-service"
+                    placeholder="ej. bcp-polizas-service"
                     className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
@@ -675,7 +683,7 @@ export const StudioPanel: React.FC = () => {
                     type="text"
                     value={packagePrefix}
                     onChange={(e) => setPackagePrefix(e.target.value)}
-                    placeholder="ej. pe.com.bcp"
+                    placeholder="ej. pe.com.bcp.polizas"
                     className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
@@ -689,19 +697,6 @@ export const StudioPanel: React.FC = () => {
                     className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-white mb-1">
-                  Requerimiento General del Microservicio (Lenguaje Natural)
-                </label>
-                <textarea
-                  rows={3}
-                  value={requirementPrompt}
-                  onChange={(e) => setRequirementPrompt(e.target.value)}
-                  placeholder="Describe en lenguaje natural lo que debe hacer tu microservicio..."
-                  className="w-full p-3 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none leading-relaxed"
-                />
               </div>
             </div>
           )}
@@ -743,7 +738,7 @@ export const StudioPanel: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-white mb-2">
-                  2.2. Patrones de Diseño Sugeridos (Selecciona los requeridos)
+                  2.2. Patrones de Diseño Utilizados (Selecciona o edita los necesarios)
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {[
@@ -886,7 +881,7 @@ export const StudioPanel: React.FC = () => {
           )}
 
           {/* ======================================================== */}
-          {/* FASE 4: PERSISTENCIA & ENTIDADES                         */}
+          {/* FASE 4: PERSISTENCIA & MODELADO DE ENTIDADES             */}
           {/* ======================================================== */}
           {activePhase === 4 && (
             <div className="space-y-5 animate-fadeIn">
@@ -911,7 +906,7 @@ export const StudioPanel: React.FC = () => {
                     type="text"
                     value={databaseName}
                     onChange={(e) => setDatabaseName(e.target.value)}
-                    placeholder="ej. bcp_loans_db"
+                    placeholder="ej. bcp_polizas_db"
                     className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
@@ -929,13 +924,13 @@ export const StudioPanel: React.FC = () => {
                     onClick={handleAddEntity}
                     className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
                   >
-                    + Agregar Entidad
+                    + Agregar Entidad Manual
                   </button>
                 </div>
 
                 {entities.length === 0 ? (
                   <div className="p-4 rounded-xl bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic text-center">
-                    No hay entidades definidas. Pulsa "Agregar Entidad" o "Sugerir con IA" para estructurar el modelo relacional.
+                    No hay entidades definidas aún. En la Fase 1, pulsa "Analizar Pedido con IA" para deducir las entidades automáticamente a partir de tu requerimiento.
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -961,7 +956,7 @@ export const StudioPanel: React.FC = () => {
                           {ent.fields.map((f, fIdx) => (
                             <div key={fIdx} className="p-2 bg-tcs-card border border-tcs-border rounded-lg text-xs font-mono flex items-center justify-between">
                               <span className="text-white">{f.name}</span>
-                              <span className="text-tcs-cyan text-[11px]">{f.type}</span>
+                              <span className="text-tcs-cyan text-[11px] font-bold">{f.type}</span>
                             </div>
                           ))}
                         </div>
@@ -988,34 +983,40 @@ export const StudioPanel: React.FC = () => {
                   onClick={handleAddEndpoint}
                   className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
                 >
-                  + Agregar Endpoint
+                  + Agregar Endpoint Manual
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {customEndpoints.map((ep, idx) => (
-                  <div key={idx} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl text-xs flex items-center justify-between font-mono">
-                    <div className="flex items-center space-x-3">
-                      <span className={`px-2 py-0.5 rounded font-extrabold text-[11px] ${
-                        ep.method === 'POST' ? 'bg-blue-950 text-blue-300 border border-blue-800' :
-                        ep.method === 'GET' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
-                        'bg-amber-950 text-amber-300 border border-amber-800'
-                      }`}>
-                        {ep.method}
-                      </span>
-                      <span className="text-white font-bold">{ep.path}</span>
-                      <span className="text-tcs-muted font-sans text-[11px] truncate max-w-xs">— {ep.summary}</span>
+              {customEndpoints.length === 0 ? (
+                <div className="p-4 rounded-xl bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic text-center">
+                  Sin endpoints configurados aún. La IA generará los endpoints automáticamente al analizar tu pedido en la Fase 1.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customEndpoints.map((ep, idx) => (
+                    <div key={idx} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl text-xs flex items-center justify-between font-mono">
+                      <div className="flex items-center space-x-3">
+                        <span className={`px-2 py-0.5 rounded font-extrabold text-[11px] ${
+                          ep.method === 'POST' ? 'bg-blue-950 text-blue-300 border border-blue-800' :
+                          ep.method === 'GET' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
+                          'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}>
+                          {ep.method}
+                        </span>
+                        <span className="text-white font-bold">{ep.path}</span>
+                        <span className="text-tcs-muted font-sans text-[11px] truncate max-w-xs">— {ep.summary}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCustomEndpoints(customEndpoints.filter((_, i) => i !== idx))}
+                        className="text-rose-400 hover:text-rose-300 text-xs font-sans"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setCustomEndpoints(customEndpoints.filter((_, i) => i !== idx))}
-                      className="text-rose-400 hover:text-rose-300 text-xs font-sans"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1142,8 +1143,8 @@ export const StudioPanel: React.FC = () => {
                   ¿Todo listo para fabricar el microservicio?
                 </h4>
                 <p className="text-xs text-tcs-muted max-w-xl mx-auto">
-                  Los agentes de IA de LangGraph escribirán todo el código fuente Quarkus, pom.xml/build.gradle,
-                  configuraciones y pruebas unitarias basándose en tus decisiones de las 7 fases.
+                  Los agentes de IA de LangGraph escribirán todo el código fuente Quarkus, {buildTool.toUpperCase()},
+                  entidades Panache, DTOs con validación, servicios transaccionales, controladores reactivos y pruebas @QuarkusTest.
                 </p>
 
                 <div className="pt-2">
@@ -1207,8 +1208,8 @@ export const StudioPanel: React.FC = () => {
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
                 <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">1. Stack & Identidad</div>
-                <div className="text-white font-bold">{artifactId}</div>
-                <div className="text-tcs-cyan font-mono text-[11px]">{packagePrefix}</div>
+                <div className="text-white font-bold">{artifactId || '(Pendiente análisis)'}</div>
+                <div className="text-tcs-cyan font-mono text-[11px]">{packagePrefix || `pe.com.${selectedClient}`}</div>
                 <div className="text-tcs-muted text-[11px]">
                   {buildTool.toUpperCase()} • Java {javaVersion} • Quarkus {quarkusVersion}
                 </div>

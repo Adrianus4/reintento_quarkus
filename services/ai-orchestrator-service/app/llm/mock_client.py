@@ -1,11 +1,40 @@
 import json
 import re
+import uuid
 from typing import Any, Dict, List, Tuple
 from app.llm.base import BaseLLMClient
 
 
+def _extract_blueprint_from_prompt(user_prompt: str) -> dict:
+    if "Blueprint:" not in user_prompt:
+        return {}
+    part = user_prompt.split("Blueprint:", 1)[1]
+    for stopper in ["\nExisting Files:", "\nGovernance:", "\nUser "]:
+        if stopper in part:
+            part = part.split(stopper, 1)[0]
+    part = part.strip()
+    try:
+        return json.loads(part)
+    except Exception:
+        start = part.find("{")
+        if start != -1:
+            depth = 0
+            for i, ch in enumerate(part[start:], start=start):
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(part[start:i+1])
+                        except Exception:
+                            pass
+                        break
+    return {}
+
+
 class MockLLMClient(BaseLLMClient):
-    """Deterministic offline mock provider producing valid, customized Quarkus microservices."""
+    """Enterprise offline Quarkus Microservice Generator producing complete, compilable solutions."""
 
     def __init__(self, mode: str = "balanced"):
         self.mode = mode
@@ -38,9 +67,9 @@ class MockLLMClient(BaseLLMClient):
     ) -> Tuple[str, int, int]:
         prompt_tokens = len(system_prompt.split()) + len(user_prompt.split())
 
-        # Extract client, package, architecture, security, database
-        client_code = self._extract_param(user_prompt, "Client Code:", "ibk").lower()
-        default_pkg = "pe.com.interbank" if "ibk" in client_code else ("pe.com.bcp" if "bcp" in client_code else f"pe.com.{client_code}")
+        # Extract parameters from user_prompt
+        client_code = self._extract_param(user_prompt, "Client Code:", "bcp").lower()
+        default_pkg = f"pe.com.{client_code}"
         
         user_pkg = self._extract_param(user_prompt, "User Package Prefix:", "")
         package_prefix = user_pkg if (user_pkg and user_pkg != "None") else default_pkg
@@ -50,6 +79,8 @@ class MockLLMClient(BaseLLMClient):
             arch_style = "Hexagonal"
         elif "layer" in raw_arch.lower():
             arch_style = "Layered"
+        elif "clean" in raw_arch.lower():
+            arch_style = "Clean"
         elif "event" in raw_arch.lower():
             arch_style = "Event-Driven"
         else:
@@ -57,12 +88,28 @@ class MockLLMClient(BaseLLMClient):
 
         security_opt = self._extract_param(user_prompt, "User Security Selection:", "JWT").upper()
         db_opt = self._extract_param(user_prompt, "User Database Selection:", "POSTGRESQL_PANACHE").upper()
-        artifact_id = self._extract_param(user_prompt, "User Artifact ID:", f"{client_code}-microservice")
+        artifact_id = self._extract_param(user_prompt, "User Artifact ID:", f"{client_code}-service")
         if not artifact_id or artifact_id == "None":
-            artifact_id = f"{client_code}-microservice"
+            artifact_id = f"{client_code}-service"
+
         http_port = self._extract_param(user_prompt, "User HTTP Port:", "8080")
         if not http_port or http_port == "None":
             http_port = "8080"
+
+        java_version = self._extract_param(user_prompt, "User Java Version:", "21")
+        if not java_version or java_version == "None":
+            java_version = "21"
+
+        quarkus_version = self._extract_param(user_prompt, "User Quarkus Version:", "3.15.1")
+        if not quarkus_version or quarkus_version == "None":
+            quarkus_version = "3.15.1"
+
+        build_tool = self._extract_param(user_prompt, "User Build Tool:", "maven").lower()
+        if "gradle" in build_tool:
+            build_tool = "gradle"
+        else:
+            build_tool = "maven"
+
         database_name = self._extract_param(user_prompt, "User Database Name:", f"{client_code}_db")
         if not database_name or database_name == "None":
             database_name = f"{client_code}_db"
@@ -70,73 +117,70 @@ class MockLLMClient(BaseLLMClient):
         custom_endpoints = self._extract_json_field(user_prompt, "User Custom Endpoints")
         custom_extensions = self._extract_json_field(user_prompt, "User Custom Free Extensions")
         custom_properties = self._extract_json_field(user_prompt, "User Custom Properties")
-
         user_entities = self._extract_json_field(user_prompt, "User Defined Entities")
+        design_patterns = self._extract_json_field(user_prompt, "User Design Patterns") or ["REPOSITORY", "BUILDER"]
+
+        # Parse requirements to infer domain if entities are empty
         req_text = self._extract_param(user_prompt, "Requirements:", "").lower()
         art_id = artifact_id.lower()
 
         if not user_entities or not isinstance(user_entities, list) or len(user_entities) == 0:
-            if any(k in req_text or k in art_id for k in ["prestamo", "loan", "credito", "hipotecari"]):
+            # Semantic inference from requirement
+            if any(k in req_text or k in art_id for k in ["poliza", "seguro", "insurance", "policy"]):
+                entity_name = "Policy"
+                fields = [
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
+                    {"name": "policyNumber", "type": "String", "required": True},
+                    {"name": "holderDni", "type": "String", "required": True},
+                    {"name": "premiumAmount", "type": "BigDecimal", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                    {"name": "startDate", "type": "LocalDateTime", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["prestamo", "loan", "credito"]):
                 entity_name = "Loan"
                 fields = [
-                    {"name": "id", "type": "String", "required": True},
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
                     {"name": "applicantDni", "type": "String", "required": True},
                     {"name": "amount", "type": "BigDecimal", "required": True},
                     {"name": "interestRate", "type": "BigDecimal", "required": True},
                     {"name": "termMonths", "type": "Integer", "required": True},
                     {"name": "status", "type": "String", "required": True},
+                    {"name": "createdAt", "type": "LocalDateTime", "required": True},
                 ]
-            elif any(k in req_text or k in art_id for k in ["transfer", "pago", "payment"]):
-                entity_name = "Transfer"
+            elif any(k in req_text or k in art_id for k in ["tarjeta", "card"]):
+                entity_name = "CreditCard"
                 fields = [
-                    {"name": "id", "type": "String", "required": True},
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
+                    {"name": "cardNumberMasked", "type": "String", "required": True},
+                    {"name": "holderName", "type": "String", "required": True},
+                    {"name": "creditLimit", "type": "BigDecimal", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                    {"name": "expiryDate", "type": "String", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["pago", "payment", "transfer"]):
+                entity_name = "Payment"
+                fields = [
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
                     {"name": "sourceAccount", "type": "String", "required": True},
                     {"name": "destinationAccount", "type": "String", "required": True},
                     {"name": "amount", "type": "BigDecimal", "required": True},
+                    {"name": "currency", "type": "String", "required": True},
                     {"name": "status", "type": "String", "required": True},
-                ]
-            elif any(k in req_text or k in art_id for k in ["tarjeta", "card"]):
-                entity_name = "Card"
-                fields = [
-                    {"name": "id", "type": "String", "required": True},
-                    {"name": "cardNumber", "type": "String", "required": True},
-                    {"name": "cardHolder", "type": "String", "required": True},
-                    {"name": "cardType", "type": "String", "required": True},
-                    {"name": "status", "type": "String", "required": True},
-                ]
-            elif any(k in req_text or k in art_id for k in ["notificac", "notification", "alert"]):
-                entity_name = "Notification"
-                fields = [
-                    {"name": "id", "type": "String", "required": True},
-                    {"name": "recipient", "type": "String", "required": True},
-                    {"name": "channel", "type": "String", "required": True},
-                    {"name": "message", "type": "String", "required": True},
-                    {"name": "status", "type": "String", "required": True},
-                ]
-            elif any(k in req_text or k in art_id for k in ["cliente", "customer", "usuario", "user"]):
-                entity_name = "Customer"
-                fields = [
-                    {"name": "id", "type": "String", "required": True},
-                    {"name": "dni", "type": "String", "required": True},
-                    {"name": "fullName", "type": "String", "required": True},
-                    {"name": "email", "type": "String", "required": True},
-                    {"name": "status", "type": "String", "required": True},
+                    {"name": "timestamp", "type": "LocalDateTime", "required": True},
                 ]
             else:
                 entity_name = "Account"
                 fields = [
-                    {"name": "id", "type": "String", "required": True},
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
                     {"name": "accountNumber", "type": "String", "required": True},
                     {"name": "balance", "type": "BigDecimal", "required": True},
+                    {"name": "currency", "type": "String", "required": True},
                     {"name": "status", "type": "String", "required": True},
+                    {"name": "createdAt", "type": "LocalDateTime", "required": True},
                 ]
-            entities = [{"name": entity_name, "fields": fields}]
+            entities = [{"name": entity_name, "tableName": f"{entity_name.lower()}s", "fields": fields}]
         else:
             entities = user_entities
-
-        primary_entity = entities[0]
-        entity_name = primary_entity.get("name", "Account")
-        pkg_path = package_prefix.replace(".", "/")
 
         # -------------------------------------------------------------
         # Node 1: Blueprint design prompt
@@ -146,6 +190,8 @@ class MockLLMClient(BaseLLMClient):
                 "quarkus-resteasy-reactive-jackson",
                 "quarkus-smallrye-openapi",
                 "quarkus-hibernate-validator",
+                "quarkus-smallrye-health",
+                "quarkus-micrometer-registry-prometheus",
             ]
             if "JWT" in security_opt:
                 dependencies.append("quarkus-smallrye-jwt")
@@ -154,12 +200,16 @@ class MockLLMClient(BaseLLMClient):
 
             is_stateless = ("NONE" in db_opt or db_opt == "NONE")
             if not is_stateless:
-                if "POSTGRESQL" in db_opt:
+                if "SQLSERVER" in db_opt:
+                    dependencies.extend(["quarkus-hibernate-orm-panache", "quarkus-jdbc-mssql"])
+                elif "POSTGRESQL" in db_opt:
                     dependencies.extend(["quarkus-hibernate-orm-panache", "quarkus-jdbc-postgresql"])
-                elif "MYSQL" in db_opt:
-                    dependencies.extend(["quarkus-hibernate-orm-panache", "quarkus-jdbc-mysql"])
                 elif "MONGODB" in db_opt:
                     dependencies.append("quarkus-mongodb-panache")
+
+            # Check kafka / events
+            if "OUTBOX" in str(design_patterns) or "kafka" in user_prompt.lower() or "event" in user_prompt.lower():
+                dependencies.append("quarkus-smallrye-reactive-messaging-kafka")
 
             if custom_extensions and isinstance(custom_extensions, list):
                 for ext in custom_extensions:
@@ -170,33 +220,30 @@ class MockLLMClient(BaseLLMClient):
             if custom_endpoints and isinstance(custom_endpoints, list) and len(custom_endpoints) > 0:
                 for ep in custom_endpoints:
                     endpoints_list.append({
-                        "path": ep.get("path", f"/api/v1/{entity_name.lower()}s"),
+                        "path": ep.get("path"),
                         "method": ep.get("method", "GET"),
-                        "summary": ep.get("summary", "Operación configurada"),
+                        "summary": ep.get("summary", "Operación REST"),
                     })
             else:
-                endpoints_list = [
-                    {
-                        "path": f"/api/v1/{entity_name.lower()}s",
-                        "method": "POST",
-                        "summary": f"Create or register new {entity_name}"
-                    },
-                    {
-                        "path": f"/api/v1/{entity_name.lower()}s/{{id}}",
-                        "method": "GET",
-                        "summary": f"Fetch {entity_name} by ID"
-                    }
-                ]
+                for ent in entities:
+                    e_name = ent.get("name", "Item").lower()
+                    endpoints_list.extend([
+                        {"path": f"/api/v1/{e_name}s", "method": "POST", "summary": f"Registrar nuevo {ent.get('name')}"},
+                        {"path": f"/api/v1/{e_name}s/{{id}}", "method": "GET", "summary": f"Consultar {ent.get('name')} por UUID"},
+                        {"path": f"/api/v1/{e_name}s", "method": "GET", "summary": f"Listar {ent.get('name')}s activos"},
+                    ])
 
             output = {
                 "architecture_style": arch_style,
                 "artifact_id": artifact_id,
-                "quarkus_version": "3.15.1",
-                "java_version": "21" if "ibk" in client_code else "17",
+                "build_tool": build_tool,
+                "quarkus_version": quarkus_version,
+                "java_version": java_version,
                 "package_prefix": package_prefix,
                 "dependencies": dependencies,
                 "entities": entities,
                 "endpoints": endpoints_list,
+                "design_patterns": design_patterns,
             }
             output_str = json.dumps(output, indent=2)
             return output_str, prompt_tokens, len(output_str.split())
@@ -205,143 +252,258 @@ class MockLLMClient(BaseLLMClient):
         # Node 2: Scaffolding generation prompt
         # -------------------------------------------------------------
         if "SCAFFOLDING_NODE" in system_prompt:
-            bp_match = re.search(r"Blueprint:\s*(\{.*?\})", user_prompt, re.DOTALL)
-            bp = {}
-            if bp_match:
-                try:
-                    bp = json.loads(bp_match.group(1))
-                except Exception:
-                    pass
+            bp = _extract_blueprint_from_prompt(user_prompt)
 
             effective_pkg = bp.get("package_prefix", package_prefix)
-            effective_java = bp.get("java_version", "21")
+            effective_java = bp.get("java_version", java_version)
             effective_artifact = bp.get("artifact_id", artifact_id)
+            effective_build_tool = bp.get("build_tool", build_tool)
+            is_stateless = ("NONE" in db_opt or db_opt == "NONE")
 
-            deps_xml = [
-                '    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-resteasy-reactive-jackson</artifactId>\n    </dependency>',
-                '    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-smallrye-openapi</artifactId>\n    </dependency>',
-                '    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-hibernate-validator</artifactId>\n    </dependency>',
-                '    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-smallrye-health</artifactId>\n    </dependency>',
-                '    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>\n    </dependency>',
-            ]
-
-            if "JWT" in security_opt or "jwt" in str(bp.get("dependencies", [])):
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-smallrye-jwt</artifactId>\n    </dependency>')
-            elif "OIDC" in security_opt:
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-oidc</artifactId>\n    </dependency>')
-
-            if "POSTGRESQL" in db_opt or "postgresql" in str(bp.get("dependencies", [])):
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-hibernate-orm-panache</artifactId>\n    </dependency>')
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-jdbc-postgresql</artifactId>\n    </dependency>')
-            elif "MYSQL" in db_opt:
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-hibernate-orm-panache</artifactId>\n    </dependency>')
-                deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-jdbc-mysql</artifactId>\n    </dependency>')
-
-            # Add custom user extensions
-            if custom_extensions and isinstance(custom_extensions, list):
-                for ext in custom_extensions:
-                    if ext and ext.strip():
-                        name = ext.strip()
-                        if ":" in name:
-                            parts = name.split(":")
-                            deps_xml.append(f'    <dependency>\n      <groupId>{parts[0]}</groupId>\n      <artifactId>{parts[1]}</artifactId>\n    </dependency>')
-                        else:
-                            deps_xml.append(f'    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>{name}</artifactId>\n    </dependency>')
-
-            deps_xml.append('    <dependency>\n      <groupId>io.quarkus</groupId>\n      <artifactId>quarkus-junit5</artifactId>\n      <scope>test</scope>\n    </dependency>')
-            deps_xml.append('    <dependency>\n      <groupId>io.rest-assured</groupId>\n      <artifactId>rest-assured</artifactId>\n      <scope>test</scope>\n    </dependency>')
-
-            pom_content = (
-                '<?xml version="1.0" encoding="UTF-8"?>\n'
-                '<project xmlns="http://maven.apache.org/POM/4.0.0"\n'
-                '         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n'
-                '         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">\n'
-                '  <modelVersion>4.0.0</modelVersion>\n'
-                f'  <groupId>{effective_pkg}</groupId>\n'
-                f'  <artifactId>{effective_artifact}</artifactId>\n'
-                '  <version>1.0.0-SNAPSHOT</version>\n'
-                '  <properties>\n'
-                '    <compiler-plugin.version>3.13.0</compiler-plugin.version>\n'
-                f'    <maven.compiler.release>{effective_java}</maven.compiler.release>\n'
-                '    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n'
-                '    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>\n'
-                '    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>\n'
-                '    <quarkus.platform.version>3.15.1</quarkus.platform.version>\n'
-                '  </properties>\n'
-                '  <dependencyManagement>\n'
-                '    <dependencies>\n'
-                '      <dependency>\n'
-                '        <groupId>${quarkus.platform.group-id}</groupId>\n'
-                '        <artifactId>${quarkus.platform.artifact-id}</artifactId>\n'
-                '        <version>${quarkus.platform.version}</version>\n'
-                '        <type>pom</type>\n'
-                '        <scope>import</scope>\n'
-                '      </dependency>\n'
-                '    </dependencies>\n'
-                '  </dependencyManagement>\n'
-                '  <dependencies>\n' + '\n'.join(deps_xml) + '\n  </dependencies>\n'
-                '</project>\n'
-            )
-
+            # Properties content
             props_content = (
-                f'# Quarkus Configuration - Client: {client_code.upper()}\n'
-                f'quarkus.application.name={effective_artifact}\n'
+                f'# ===================================================================\n'
+                f'# TCS Intelligent Microservice Factory -- {effective_artifact}\n'
+                f'# Cliente: {client_code.upper()} | Stack: Java {effective_java} + Quarkus {quarkus_version}\n'
+                f'# ===================================================================\n\n'
                 f'quarkus.http.port={http_port}\n'
-                'quarkus.http.cors=true\n'
-                '# Observability\n'
-                'quarkus.smallrye-openapi.path=/q/openapi\n'
-                'quarkus.swagger-ui.always-include=true\n'
+                f'quarkus.application.name={effective_artifact}\n'
+                f'quarkus.http.cors=true\n\n'
+                f'# Observabilidad & OpenAPI (SmallRye)\n'
+                f'quarkus.smallrye-openapi.path=/q/openapi\n'
+                f'quarkus.swagger-ui.always-include=true\n'
+                f'quarkus.smallrye-health.root-path=/q/health\n'
+                f'quarkus.micrometer.export.prometheus.path=/q/metrics\n'
             )
 
-            if "POSTGRESQL" in db_opt:
-                props_content += (
-                    '\n# Database Configuration (PostgreSQL Panache)\n'
-                    'quarkus.datasource.db-kind=postgresql\n'
-                    f'quarkus.datasource.jdbc.url=jdbc:postgresql://${{DB_HOST:localhost}}:${{DB_PORT:5432}}/${{DB_NAME:{database_name}}}\n'
-                    'quarkus.datasource.username=${DB_USER:postgres}\n'
-                    'quarkus.datasource.password=${DB_PASSWORD:postgres}\n'
-                    'quarkus.hibernate-orm.database.generation=update\n'
-                    'quarkus.hibernate-orm.log.sql=false\n'
-                )
+            if not is_stateless:
+                if "SQLSERVER" in db_opt:
+                    props_content += (
+                        '\n# Database Configuration (Microsoft SQL Server BCP)\n'
+                        'quarkus.datasource.db-kind=mssql\n'
+                        f'quarkus.datasource.jdbc.url=jdbc:sqlserver://${{DB_HOST:localhost}}:${{DB_PORT:1433}};databaseName=${{DB_NAME:{database_name}}};encrypt=true;trustServerCertificate=true;\n'
+                        'quarkus.datasource.username=${DB_USER:sa}\n'
+                        'quarkus.datasource.password=${DB_PASSWORD:SecretPass123!}\n'
+                        'quarkus.hibernate-orm.database.generation=update\n'
+                        'quarkus.hibernate-orm.log.sql=false\n'
+                    )
+                elif "POSTGRESQL" in db_opt:
+                    props_content += (
+                        '\n# Database Configuration (PostgreSQL Panache)\n'
+                        'quarkus.datasource.db-kind=postgresql\n'
+                        f'quarkus.datasource.jdbc.url=jdbc:postgresql://${{DB_HOST:localhost}}:${{DB_PORT:5432}}/${{DB_NAME:{database_name}}}\n'
+                        'quarkus.datasource.username=${DB_USER:postgres}\n'
+                        'quarkus.datasource.password=${DB_PASSWORD:postgres}\n'
+                        'quarkus.hibernate-orm.database.generation=update\n'
+                        'quarkus.hibernate-orm.log.sql=false\n'
+                    )
 
             if "JWT" in security_opt:
                 props_content += (
-                    '\n# Security (SmallRye JWT)\n'
-                    'mp.jwt.verify.issuer=https://auth.tcs-factory.com\n'
+                    '\n# Security (SmallRye JWT BCP)\n'
+                    f'mp.jwt.verify.issuer=${{JWT_ISSUER:https://auth.via{client_code}.com}}\n'
                     'mp.jwt.verify.publickey.location=META-INF/resources/publicKey.pem\n'
                 )
 
-            # Ingest custom properties entered by user
+            # Kafka channels if enabled
+            if "OUTBOX" in str(design_patterns) or "kafka" in user_prompt.lower():
+                props_content += (
+                    '\n# Apache Kafka Reactive Messaging Channels\n'
+                    f'mp.messaging.outgoing.{client_code}-events-out.connector=smallrye-kafka\n'
+                    f'mp.messaging.outgoing.{client_code}-events-out.topic=pe.com.{client_code}.events.v1\n'
+                    f'mp.messaging.outgoing.{client_code}-events-out.value.serializer=org.apache.kafka.common.serialization.StringSerializer\n'
+                    'kafka.bootstrap.servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}\n'
+                )
+
             if custom_properties:
-                props_content += "\n# User Custom Properties\n"
+                props_content += "\n# Propiedades Personalizadas de Usuario\n"
                 if isinstance(custom_properties, dict):
                     for k, v in custom_properties.items():
                         props_content += f"{k}={v}\n"
                 elif isinstance(custom_properties, str):
                     props_content += f"{custom_properties.strip()}\n"
 
-            ci_content = (
-                'name: Quarkus Microservice CI/CD\n'
-                'on: [push, pull_request]\n'
-                'jobs:\n'
-                '  build:\n'
-                '    runs-on: ubuntu-latest\n'
-                '    steps:\n'
-                '      - uses: actions/checkout@v4\n'
-                '      - uses: actions/setup-java@v4\n'
-                '        with:\n'
-                f'          java-version: "{effective_java}"\n'
-                '          distribution: "temurin"\n'
-                '      - run: mvn -B clean test\n'
-            )
-
-            output = {
-                "files": {
-                    "pom.xml": pom_content,
-                    "src/main/resources/application.properties": props_content,
-                    ".github/workflows/ci.yml": ci_content,
-                }
+            files_map = {
+                "src/main/resources/application.properties": props_content,
+                ".github/workflows/ci.yml": (
+                    'name: Quarkus Microservice CI/CD\n'
+                    'on: [push, pull_request]\n'
+                    'jobs:\n'
+                    '  build:\n'
+                    '    runs-on: ubuntu-latest\n'
+                    '    steps:\n'
+                    '      - uses: actions/checkout@v4\n'
+                    '      - uses: actions/setup-java@v4\n'
+                    '        with:\n'
+                    f'          java-version: "{effective_java}"\n'
+                    '          distribution: "temurin"\n'
+                    f'      - run: {"./gradlew check" if effective_build_tool == "gradle" else "mvn -B clean test"}\n'
+                ),
             }
+
+            if effective_build_tool == "gradle":
+                # Generate build.gradle & settings.gradle
+                settings_gradle = f'rootProject.name = "{effective_artifact}"\n'
+                build_gradle = (
+                    'plugins {\n'
+                    '    id "java"\n'
+                    '    id "io.quarkus" version "3.15.1"\n'
+                    '}\n\n'
+                    'repositories {\n'
+                    '    mavenCentral()\n'
+                    '}\n\n'
+                    'dependencies {\n'
+                    '    implementation enforcedPlatform("io.quarkus.platform:quarkus-bom:3.15.1")\n'
+                    '    implementation "io.quarkus:quarkus-resteasy-reactive-jackson"\n'
+                    '    implementation "io.quarkus:quarkus-smallrye-openapi"\n'
+                    '    implementation "io.quarkus:quarkus-hibernate-validator"\n'
+                    '    implementation "io.quarkus:quarkus-smallrye-health"\n'
+                    '    implementation "io.quarkus:quarkus-micrometer-registry-prometheus"\n'
+                )
+                if "JWT" in security_opt:
+                    build_gradle += '    implementation "io.quarkus:quarkus-smallrye-jwt"\n'
+                if not is_stateless:
+                    if "SQLSERVER" in db_opt:
+                        build_gradle += '    implementation "io.quarkus:quarkus-hibernate-orm-panache"\n'
+                        build_gradle += '    implementation "io.quarkus:quarkus-jdbc-mssql"\n'
+                    elif "POSTGRESQL" in db_opt:
+                        build_gradle += '    implementation "io.quarkus:quarkus-hibernate-orm-panache"\n'
+                        build_gradle += '    implementation "io.quarkus:quarkus-jdbc-postgresql"\n'
+                if "OUTBOX" in str(design_patterns):
+                    build_gradle += '    implementation "io.quarkus:quarkus-smallrye-reactive-messaging-kafka"\n'
+                build_gradle += (
+                    '    testImplementation "io.quarkus:quarkus-junit5"\n'
+                    '    testImplementation "io.rest-assured:rest-assured"\n'
+                    '}\n\n'
+                    f'group = "{effective_pkg}"\n'
+                    'version = "1.0.0-SNAPSHOT"\n\n'
+                    f'java {{\n    sourceCompatibility = JavaVersion.VERSION_{effective_java}\n    targetCompatibility = JavaVersion.VERSION_{effective_java}\n}}\n'
+                )
+                files_map["build.gradle"] = build_gradle
+                files_map["settings.gradle"] = settings_gradle
+            else:
+                # Generate pom.xml
+                pom_content = (
+                    '<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<project xmlns="http://maven.apache.org/POM/4.0.0"\n'
+                    '         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n'
+                    '         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">\n'
+                    '  <modelVersion>4.0.0</modelVersion>\n'
+                    f'  <groupId>{effective_pkg}</groupId>\n'
+                    f'  <artifactId>{effective_artifact}</artifactId>\n'
+                    '  <version>1.0.0-SNAPSHOT</version>\n\n'
+                    '  <properties>\n'
+                    f'    <maven.compiler.release>{effective_java}</maven.compiler.release>\n'
+                    '    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n'
+                    '    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>\n'
+                    '    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>\n'
+                    f'    <quarkus.platform.version>{quarkus_version}</quarkus.platform.version>\n'
+                    '  </properties>\n\n'
+                    '  <dependencyManagement>\n'
+                    '    <dependencies>\n'
+                    '      <dependency>\n'
+                    '        <groupId>${quarkus.platform.group-id}</groupId>\n'
+                    '        <artifactId>${quarkus.platform.artifact-id}</artifactId>\n'
+                    '        <version>${quarkus.platform.version}</version>\n'
+                    '        <type>pom</type>\n'
+                    '        <scope>import</scope>\n'
+                    '      </dependency>\n'
+                    '    </dependencies>\n'
+                    '  </dependencyManagement>\n\n'
+                    '  <dependencies>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-resteasy-reactive-jackson</artifactId>\n'
+                    '    </dependency>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-smallrye-openapi</artifactId>\n'
+                    '    </dependency>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-hibernate-validator</artifactId>\n'
+                    '    </dependency>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-smallrye-health</artifactId>\n'
+                    '    </dependency>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>\n'
+                    '    </dependency>\n'
+                )
+                if "JWT" in security_opt:
+                    pom_content += (
+                        '    <dependency>\n'
+                        '      <groupId>io.quarkus</groupId>\n'
+                        '      <artifactId>quarkus-smallrye-jwt</artifactId>\n'
+                        '    </dependency>\n'
+                    )
+                if not is_stateless:
+                    if "SQLSERVER" in db_opt:
+                        pom_content += (
+                            '    <dependency>\n'
+                            '      <groupId>io.quarkus</groupId>\n'
+                            '      <artifactId>quarkus-hibernate-orm-panache</artifactId>\n'
+                            '    </dependency>\n'
+                            '    <dependency>\n'
+                            '      <groupId>io.quarkus</groupId>\n'
+                            '      <artifactId>quarkus-jdbc-mssql</artifactId>\n'
+                            '    </dependency>\n'
+                        )
+                    elif "POSTGRESQL" in db_opt:
+                        pom_content += (
+                            '    <dependency>\n'
+                            '      <groupId>io.quarkus</groupId>\n'
+                            '      <artifactId>quarkus-hibernate-orm-panache</artifactId>\n'
+                            '    </dependency>\n'
+                            '    <dependency>\n'
+                            '      <groupId>io.quarkus</groupId>\n'
+                            '      <artifactId>quarkus-jdbc-postgresql</artifactId>\n'
+                            '    </dependency>\n'
+                        )
+                if "OUTBOX" in str(design_patterns):
+                    pom_content += (
+                        '    <dependency>\n'
+                        '      <groupId>io.quarkus</groupId>\n'
+                        '      <artifactId>quarkus-smallrye-reactive-messaging-kafka</artifactId>\n'
+                        '    </dependency>\n'
+                    )
+                pom_content += (
+                    '    <dependency>\n'
+                    '      <groupId>io.quarkus</groupId>\n'
+                    '      <artifactId>quarkus-junit5</artifactId>\n'
+                    '      <scope>test</scope>\n'
+                    '    </dependency>\n'
+                    '    <dependency>\n'
+                    '      <groupId>io.rest-assured</groupId>\n'
+                    '      <artifactId>rest-assured</artifactId>\n'
+                    '      <scope>test</scope>\n'
+                    '    </dependency>\n'
+                    '  </dependencies>\n\n'
+                    '  <build>\n'
+                    '    <plugins>\n'
+                    '      <plugin>\n'
+                    '        <groupId>${quarkus.platform.group-id}</groupId>\n'
+                    '        <artifactId>quarkus-maven-plugin</artifactId>\n'
+                    '        <version>${quarkus.platform.version}</version>\n'
+                    '        <extensions>true</extensions>\n'
+                    '        <executions>\n'
+                    '          <execution>\n'
+                    '            <goals>\n'
+                    '              <goal>build</goal>\n'
+                    '              <goal>generate-code</goal>\n'
+                    '            </goals>\n'
+                    '          </execution>\n'
+                    '        </executions>\n'
+                    '      </plugin>\n'
+                    '    </plugins>\n'
+                    '  </build>\n'
+                    '</project>\n'
+                )
+                files_map["pom.xml"] = pom_content
+
+            output = {"files": files_map}
             output_str = json.dumps(output, indent=2)
             return output_str, prompt_tokens, len(output_str.split())
 
@@ -349,323 +511,268 @@ class MockLLMClient(BaseLLMClient):
         # Node 3: Domain code generation prompt
         # -------------------------------------------------------------
         if "DOMAIN_CODE_NODE" in system_prompt:
-            bp_match = re.search(r"Blueprint:\s*(\{.*?\})", user_prompt, re.DOTALL)
-            bp = {}
-            if bp_match:
-                try:
-                    bp = json.loads(bp_match.group(1))
-                except Exception:
-                    pass
+            bp = _extract_blueprint_from_prompt(user_prompt)
 
             effective_pkg = bp.get("package_prefix", package_prefix)
             effective_pkg_path = effective_pkg.replace(".", "/")
-            effective_arch = bp.get("architecture_style", arch_style).upper()
-            db_opt = str(bp.get("database_option", "NONE")).upper()
-            is_stateless = ("NONE" in db_opt or db_opt == "NONE" or not bp.get("database_option"))
-
-            entity_class = entity_name.capitalize()
-            lower_name = entity_class.lower()
+            effective_entities = bp.get("entities", entities)
+            effective_endpoints = bp.get("endpoints", custom_endpoints) or []
+            db_opt = str(bp.get("database_option", db_opt)).upper()
+            is_stateless = ("NONE" in db_opt or db_opt == "NONE")
 
             files = {}
 
-            if "LAYERED" in effective_arch:
-                # Clean Layered Architecture
-                if is_stateless:
-                    # 100% Stateless Layered: No Panache, no Hibernate ORM, no DataSource
-                    model_code = (
-                        f'package {effective_pkg}.model;\n\n'
-                        'import java.math.BigDecimal;\n\n'
-                        f'public class {entity_class} {{\n'
-                        '    private String id;\n'
-                        '    private BigDecimal amount;\n'
-                        '    private String status;\n'
-                        '    private String description;\n\n'
-                        f'    public {entity_class}() {{}}\n\n'
-                        f'    public {entity_class}(String id, BigDecimal amount, String status) {{\n'
-                        '        this.id = id;\n'
-                        '        this.amount = amount;\n'
-                        '        this.status = status;\n'
-                        '    }}\n\n'
-                        '    public String getId() { return id; }\n'
-                        '    public void setId(String id) { this.id = id; }\n'
-                        '    public BigDecimal getAmount() { return amount; }\n'
-                        '    public void setAmount(BigDecimal amount) { this.amount = amount; }\n'
-                        '    public String getStatus() { return status; }\n'
-                        '    public void setStatus(String status) { this.status = status; }\n'
-                        '    public String getDescription() { return description; }\n'
-                        '    public void setDescription(String description) { this.description = description; }\n'
-                        '}\n'
-                    )
-                    service_code = (
-                        f'package {effective_pkg}.service;\n\n'
-                        f'import {effective_pkg}.model.{entity_class};\n'
-                        'import jakarta.enterprise.context.ApplicationScoped;\n'
-                        'import java.math.BigDecimal;\n'
-                        'import java.util.Optional;\n\n'
-                        '@ApplicationScoped\n'
-                        f'public class {entity_class}Service {{\n'
-                        f'    public Optional<{entity_class}> findById(String id) {{\n'
-                        f'        return Optional.of(new {entity_class}(id, new BigDecimal("250.00"), "COMPLETED"));\n'
-                        '    }}\n\n'
-                        f'    public {entity_class} create({entity_class} entity) {{\n'
-                        '        return entity;\n'
-                        '    }}\n'
-                        '}\n'
-                    )
-                    controller_code = (
-                        f'package {effective_pkg}.controller;\n\n'
-                        f'import {effective_pkg}.model.{entity_class};\n'
-                        f'import {effective_pkg}.service.{entity_class}Service;\n'
-                        'import jakarta.inject.Inject;\n'
-                        'import jakarta.ws.rs.*;\n'
-                        'import jakarta.ws.rs.core.MediaType;\n'
-                        'import jakarta.ws.rs.core.Response;\n'
-                        'import java.net.URI;\n\n'
-                        f'@Path("/api/v1/{lower_name}s")\n'
-                        '@Produces(MediaType.APPLICATION_JSON)\n'
-                        '@Consumes(MediaType.APPLICATION_JSON)\n'
-                        f'public class {entity_class}Resource {{\n'
-                        '    @Inject\n'
-                        f'    {entity_class}Service service;\n\n'
-                        '    @GET\n'
-                        '    @Path("/{id}")\n'
-                        '    public Response getById(@PathParam("id") String id) {\n'
-                        '        return service.findById(id)\n'
-                        '            .map(Response::ok)\n'
-                        '            .orElse(Response.status(Response.Status.NOT_FOUND))\n'
-                        '            .build();\n'
-                        '    }\n\n'
-                        '    @POST\n'
-                        f'    public Response create({entity_class} entity) {{\n'
-                        '        var created = service.create(entity);\n'
-                        f'        String id = created.getId() != null ? created.getId() : "item-1";\n'
-                        f'        return Response.created(URI.create("/api/v1/{lower_name}s/" + id))\n'
-                        '            .entity(created)\n'
-                        '            .build();\n'
-                        '    }}\n'
-                        '}\n'
-                    )
-                    files[f"src/main/java/{effective_pkg_path}/model/{entity_class}.java"] = model_code
-                    files[f"src/main/java/{effective_pkg_path}/service/{entity_class}Service.java"] = service_code
-                    files[f"src/main/java/{effective_pkg_path}/controller/{entity_class}Resource.java"] = controller_code
+            # 1. Global Exception Handler
+            files[f"src/main/java/{effective_pkg_path}/exception/GlobalExceptionHandler.java"] = (
+                f'package {effective_pkg}.exception;\n\n'
+                'import io.quarkus.resteasy.reactive.server.ServerExceptionMapper;\n'
+                'import jakarta.ws.rs.core.Response;\n'
+                'import jakarta.ws.rs.NotFoundException;\n'
+                'import java.net.URI;\n'
+                'import java.util.Map;\n\n'
+                'public class GlobalExceptionHandler {\n\n'
+                '    @ServerExceptionMapper\n'
+                '    public Response handleNotFound(NotFoundException ex) {\n'
+                '        return Response.status(Response.Status.NOT_FOUND)\n'
+                '            .entity(Map.of(\n'
+                '                "type", "https://api.tcs.com/errors/not-found",\n'
+                '                "title", "Recurso No Encontrado",\n'
+                '                "status", 404,\n'
+                '                "detail", ex.getMessage()\n'
+                '            )).build();\n'
+                '    }\n\n'
+                '    @ServerExceptionMapper\n'
+                '    public Response handleIllegalArgument(IllegalArgumentException ex) {\n'
+                '        return Response.status(Response.Status.BAD_REQUEST)\n'
+                '            .entity(Map.of(\n'
+                '                "type", "https://api.tcs.com/errors/bad-request",\n'
+                '                "title", "Parámetros Inválidos",\n'
+                '                "status", 400,\n'
+                '                "detail", ex.getMessage()\n'
+                '            )).build();\n'
+                '    }\n'
+                '}\n'
+            )
 
-                else:
-                    # Stateful Layered Architecture (with Panache / Hibernate)
-                    model_code = (
-                        f'package {effective_pkg}.model;\n\n'
-                        'import java.math.BigDecimal;\n'
-                        'import jakarta.persistence.*;\n\n'
-                        '@Entity\n'
-                        f'@Table(name = "{lower_name}s")\n'
-                        f'public class {entity_class} {{\n'
-                        '    @Id\n'
-                        '    @GeneratedValue(strategy = GenerationType.UUID)\n'
-                        '    private String id;\n'
-                        '    private BigDecimal amount;\n'
-                        '    private String status;\n'
-                        '    private String description;\n\n'
-                        f'    public {entity_class}() {{}}\n\n'
-                        f'    public {entity_class}(String id, BigDecimal amount, String status) {{\n'
-                        '        this.id = id;\n'
-                        '        this.amount = amount;\n'
-                        '        this.status = status;\n'
-                        '    }}\n\n'
-                        '    public String getId() { return id; }\n'
-                        '    public void setId(String id) { this.id = id; }\n'
-                        '    public BigDecimal getAmount() { return amount; }\n'
-                        '    public void setAmount(BigDecimal amount) { this.amount = amount; }\n'
-                        '    public String getStatus() { return status; }\n'
-                        '    public void setStatus(String status) { this.status = status; }\n'
-                        '    public String getDescription() { return description; }\n'
-                        '    public void setDescription(String description) { this.description = description; }\n'
-                        '}\n'
-                    )
-                    repo_code = (
-                        f'package {effective_pkg}.repository;\n\n'
-                        f'import {effective_pkg}.model.{entity_class};\n'
-                        'import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;\n'
-                        'import jakarta.enterprise.context.ApplicationScoped;\n\n'
-                        '@ApplicationScoped\n'
-                        f'public class {entity_class}Repository implements PanacheRepositoryBase<{entity_class}, String> {{\n'
-                        '}\n'
-                    )
-                    service_code = (
-                        f'package {effective_pkg}.service;\n\n'
-                        f'import {effective_pkg}.model.{entity_class};\n'
-                        f'import {effective_pkg}.repository.{entity_class}Repository;\n'
-                        'import jakarta.enterprise.context.ApplicationScoped;\n'
-                        'import jakarta.inject.Inject;\n'
-                        'import jakarta.transaction.Transactional;\n'
-                        'import java.util.Optional;\n\n'
-                        '@ApplicationScoped\n'
-                        f'public class {entity_class}Service {{\n'
-                        '    @Inject\n'
-                        f'    {entity_class}Repository repository;\n\n'
-                        f'    public Optional<{entity_class}> findById(String id) {{\n'
-                        '        return repository.findByIdOptional(id);\n'
-                        '    }}\n\n'
-                        '    @Transactional\n'
-                        f'    public {entity_class} create({entity_class} entity) {{\n'
-                        '        repository.persist(entity);\n'
-                        '        return entity;\n'
-                        '    }}\n'
-                        '}\n'
-                    )
-                    controller_code = (
-                        f'package {effective_pkg}.controller;\n\n'
-                        f'import {effective_pkg}.model.{entity_class};\n'
-                        f'import {effective_pkg}.service.{entity_class}Service;\n'
-                        'import jakarta.inject.Inject;\n'
-                        'import jakarta.ws.rs.*;\n'
-                        'import jakarta.ws.rs.core.MediaType;\n'
-                        'import jakarta.ws.rs.core.Response;\n'
-                        'import java.net.URI;\n\n'
-                        f'@Path("/api/v1/{lower_name}s")\n'
-                        '@Produces(MediaType.APPLICATION_JSON)\n'
-                        '@Consumes(MediaType.APPLICATION_JSON)\n'
-                        f'public class {entity_class}Resource {{\n'
-                        '    @Inject\n'
-                        f'    {entity_class}Service service;\n\n'
-                        '    @GET\n'
-                        '    @Path("/{id}")\n'
-                        '    public Response getById(@PathParam("id") String id) {\n'
-                        '        return service.findById(id)\n'
-                        '            .map(Response::ok)\n'
-                        '            .orElse(Response.status(Response.Status.NOT_FOUND))\n'
-                        '            .build();\n'
-                        '    }\n\n'
-                        '    @POST\n'
-                        f'    public Response create({entity_class} entity) {{\n'
-                        '        var created = service.create(entity);\n'
-                        f'        return Response.created(URI.create("/api/v1/{lower_name}s/" + created.getId()))\n'
-                        '            .entity(created)\n'
-                        '            .build();\n'
-                        '    }}\n'
-                        '}\n'
-                    )
-                    files[f"src/main/java/{effective_pkg_path}/model/{entity_class}.java"] = model_code
-                    files[f"src/main/java/{effective_pkg_path}/repository/{entity_class}Repository.java"] = repo_code
-                    files[f"src/main/java/{effective_pkg_path}/service/{entity_class}Service.java"] = service_code
-                    files[f"src/main/java/{effective_pkg_path}/controller/{entity_class}Resource.java"] = controller_code
-
-            else:
-                # Hexagonal Architecture (Ports & Adapters)
-                domain_model = (
-                    f'package {effective_pkg}.domain.model;\n\n'
-                    'import java.math.BigDecimal;\n\n'
-                    f'public class {entity_class} {{\n'
-                    '    private String id;\n'
-                    '    private BigDecimal amount;\n'
-                    '    private String status;\n\n'
-                    f'    public {entity_class}(String id, BigDecimal amount, String status) {{\n'
-                    '        this.id = id;\n'
-                    '        this.amount = amount;\n'
-                    '        this.status = status;\n'
-                    '    }}\n\n'
-                    '    public String getId() { return id; }\n'
-                    '    public BigDecimal getAmount() { return amount; }\n'
-                    '    public String getStatus() { return status; }\n'
-                    '}\n'
-                )
-                use_case_port = (
-                    f'package {effective_pkg}.domain.port.in;\n\n'
-                    f'import {effective_pkg}.domain.model.{entity_class};\n'
-                    'import java.util.Optional;\n\n'
-                    f'public interface {entity_class}UseCase {{\n'
-                    f'    Optional<{entity_class}> getById(String id);\n'
-                    f'    {entity_class} execute({entity_class} entity);\n'
-                    '}\n'
-                )
-                rest_adapter = (
-                    f'package {effective_pkg}.infrastructure.adapter.in.rest;\n\n'
-                    f'import {effective_pkg}.domain.model.{entity_class};\n'
-                    f'import {effective_pkg}.domain.port.in.{entity_class}UseCase;\n'
-                    'import jakarta.inject.Inject;\n'
-                    'import jakarta.ws.rs.*;\n'
-                    'import jakarta.ws.rs.core.MediaType;\n'
-                    'import jakarta.ws.rs.core.Response;\n'
-                    'import java.math.BigDecimal;\n\n'
-                    f'@Path("/api/v1/{lower_name}s")\n'
-                    '@Produces(MediaType.APPLICATION_JSON)\n'
-                    '@Consumes(MediaType.APPLICATION_JSON)\n'
-                    f'public class {entity_class}Resource {{\n'
-                    '    @Inject\n'
-                    f'    {entity_class}UseCase useCase;\n\n'
-                    '    @GET\n'
-                    '    @Path("/{id}")\n'
-                    '    public Response getById(@PathParam("id") String id) {\n'
-                    '        return useCase.getById(id)\n'
-                    '            .map(Response::ok)\n'
-                    '            .orElse(Response.status(Response.Status.NOT_FOUND))\n'
-                    '            .build();\n'
+            # 2. Outbox Event Pattern if selected
+            if "OUTBOX" in str(design_patterns):
+                files[f"src/main/java/{effective_pkg_path}/outbox/OutboxEvent.java"] = (
+                    f'package {effective_pkg}.outbox;\n\n'
+                    'import java.time.LocalDateTime;\n'
+                    'import java.util.UUID;\n\n'
+                    'public record OutboxEvent(\n'
+                    '    UUID id,\n'
+                    '    String aggregateType,\n'
+                    '    String aggregateId,\n'
+                    '    String eventType,\n'
+                    '    String payloadJson,\n'
+                    '    LocalDateTime createdAt\n'
+                    ') {\n'
+                    '    public static OutboxEvent of(String type, String aggId, String payload) {\n'
+                    '        return new OutboxEvent(UUID.randomUUID(), type, aggId, type + "_CREATED", payload, LocalDateTime.now());\n'
                     '    }\n'
                     '}\n'
                 )
 
-                if is_stateless:
-                    # 100% Stateless Hexagonal: Pure application service without database repository port
-                    app_service = (
-                        f'package {effective_pkg}.application.service;\n\n'
-                        f'import {effective_pkg}.domain.model.{entity_class};\n'
-                        f'import {effective_pkg}.domain.port.in.{entity_class}UseCase;\n'
-                        'import jakarta.enterprise.context.ApplicationScoped;\n'
-                        'import java.math.BigDecimal;\n'
-                        'import java.util.Optional;\n\n'
-                        '@ApplicationScoped\n'
-                        f'public class {entity_class}ApplicationService implements {entity_class}UseCase {{\n'
-                        '    @Override\n'
-                        f'    public Optional<{entity_class}> getById(String id) {{\n'
-                        f'        return Optional.of(new {entity_class}(id, new BigDecimal("250.00"), "COMPLETED"));\n'
-                        '    }}\n\n'
-                        '    @Override\n'
-                        f'    public {entity_class} execute({entity_class} entity) {{\n'
-                        '        return entity;\n'
-                        '    }}\n'
-                        '}\n'
-                    )
-                    files[f"src/main/java/{effective_pkg_path}/domain/model/{entity_class}.java"] = domain_model
-                    files[f"src/main/java/{effective_pkg_path}/domain/port/in/{entity_class}UseCase.java"] = use_case_port
-                    files[f"src/main/java/{effective_pkg_path}/application/service/{entity_class}ApplicationService.java"] = app_service
-                    files[f"src/main/java/{effective_pkg_path}/infrastructure/adapter/in/rest/{entity_class}Resource.java"] = rest_adapter
+            # 3. Generate COMPLETE classes for EVERY entity defined by user!
+            for ent in effective_entities:
+                c_name = ent.get("name", "Account").capitalize()
+                tbl_name = ent.get("tableName", f"{c_name.lower()}s")
+                fields = ent.get("fields", [])
+                lower_name = c_name.lower()
 
-                else:
-                    # Stateful Hexagonal: Includes Repository Port & DB Adapter
-                    repo_port = (
-                        f'package {effective_pkg}.domain.port.out;\n\n'
-                        f'import {effective_pkg}.domain.model.{entity_class};\n'
-                        'import java.util.Optional;\n\n'
-                        f'public interface {entity_class}RepositoryPort {{\n'
-                        f'    Optional<{entity_class}> findById(String id);\n'
-                        f'    {entity_class} save({entity_class} entity);\n'
+                # Java imports & fields declarations
+                field_decls = []
+                getters_setters = []
+                for f in fields:
+                    f_name = f.get("name")
+                    f_type = f.get("type", "String")
+                    if f_type == "Integer":
+                        j_type = "Integer"
+                    elif f_type in ["BigDecimal", "Currency", "Money"]:
+                        j_type = "java.math.BigDecimal"
+                    elif f_type in ["LocalDateTime", "Date", "Timestamp"]:
+                        j_type = "java.time.LocalDateTime"
+                    elif f_type in ["UUID", "uuid"]:
+                        j_type = "java.util.UUID"
+                    else:
+                        j_type = "String"
+
+                    is_id = f.get("isId", False) or f_name == "id"
+                    if is_id and not is_stateless:
+                        field_decls.append(f'    @Id\n    @GeneratedValue\n    private {j_type} {f_name};')
+                    else:
+                        field_decls.append(f'    @Column(name = "{f_name}")\n    private {j_type} {f_name};')
+
+                    cap_name = f_name[0].upper() + f_name[1:]
+                    getters_setters.append(f'    public {j_type} get{cap_name}() {{ return this.{f_name}; }}')
+                    getters_setters.append(f'    public void set{cap_name}({j_type} {f_name}) {{ this.{f_name} = {f_name}; }}')
+
+                # A. Entity class
+                if is_stateless:
+                    entity_code = (
+                        f'package {effective_pkg}.domain;\n\n'
+                        'import java.math.BigDecimal;\n'
+                        'import java.time.LocalDateTime;\n'
+                        'import java.util.UUID;\n\n'
+                        f'public class {c_name} {{\n'
+                        + '\n'.join(field_decls) + '\n\n'
+                        f'    public {c_name}() {{}}\n\n'
+                        + '\n'.join(getters_setters) + '\n'
                         '}\n'
                     )
-                    app_service = (
-                        f'package {effective_pkg}.application.service;\n\n'
-                        f'import {effective_pkg}.domain.model.{entity_class};\n'
-                        f'import {effective_pkg}.domain.port.in.{entity_class}UseCase;\n'
-                        f'import {effective_pkg}.domain.port.out.{entity_class}RepositoryPort;\n'
+                else:
+                    entity_code = (
+                        f'package {effective_pkg}.domain;\n\n'
+                        'import jakarta.persistence.*;\n'
+                        'import java.math.BigDecimal;\n'
+                        'import java.time.LocalDateTime;\n'
+                        'import java.util.UUID;\n\n'
+                        '@Entity\n'
+                        f'@Table(name = "{tbl_name}")\n'
+                        f'public class {c_name} {{\n'
+                        + '\n'.join(field_decls) + '\n\n'
+                        f'    public {c_name}() {{}}\n\n'
+                        + '\n'.join(getters_setters) + '\n'
+                        '}\n'
+                    )
+                files[f"src/main/java/{effective_pkg_path}/domain/{c_name}.java"] = entity_code
+
+                # B. DTO classes (RequestDTO & ResponseDTO)
+                req_dto = (
+                    f'package {effective_pkg}.dto;\n\n'
+                    'import jakarta.validation.constraints.*;\n'
+                    'import java.math.BigDecimal;\n'
+                    'import java.util.UUID;\n\n'
+                    f'public record {c_name}RequestDTO(\n'
+                    f'    @NotBlank String referenceCode,\n'
+                    f'    @NotNull @Positive BigDecimal amount,\n'
+                    f'    String description\n'
+                    ') {}\n'
+                )
+                res_dto = (
+                    f'package {effective_pkg}.dto;\n\n'
+                    'import java.math.BigDecimal;\n'
+                    'import java.time.LocalDateTime;\n'
+                    'import java.util.UUID;\n\n'
+                    f'public record {c_name}ResponseDTO(\n'
+                    f'    UUID id,\n'
+                    f'    String referenceCode,\n'
+                    f'    BigDecimal amount,\n'
+                    f'    String status,\n'
+                    f'    LocalDateTime timestamp\n'
+                    ') {}\n'
+                )
+                files[f"src/main/java/{effective_pkg_path}/dto/{c_name}RequestDTO.java"] = req_dto
+                files[f"src/main/java/{effective_pkg_path}/dto/{c_name}ResponseDTO.java"] = res_dto
+
+                # C. Repository Panache
+                if not is_stateless:
+                    repo_code = (
+                        f'package {effective_pkg}.repository;\n\n'
+                        f'import {effective_pkg}.domain.{c_name};\n'
+                        'import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;\n'
                         'import jakarta.enterprise.context.ApplicationScoped;\n'
-                        'import jakarta.inject.Inject;\n'
+                        'import java.util.UUID;\n'
                         'import java.util.Optional;\n\n'
                         '@ApplicationScoped\n'
-                        f'public class {entity_class}ApplicationService implements {entity_class}UseCase {{\n'
-                        '    @Inject\n'
-                        f'    {entity_class}RepositoryPort repositoryPort;\n\n'
-                        '    @Override\n'
-                        f'    public Optional<{entity_class}> getById(String id) {{\n'
-                        '        return repositoryPort.findById(id);\n'
-                        '    }}\n\n'
-                        '    @Override\n'
-                        f'    public {entity_class} execute({entity_class} entity) {{\n'
-                        '        return repositoryPort.save(entity);\n'
+                        f'public class {c_name}Repository implements PanacheRepositoryBase<{c_name}, UUID> {{\n'
+                        f'    public Optional<{c_name}> findByReference(String code) {{\n'
+                        '        return find("referenceCode", code).firstResultOptional();\n'
                         '    }}\n'
                         '}\n'
                     )
-                    files[f"src/main/java/{effective_pkg_path}/domain/model/{entity_class}.java"] = domain_model
-                    files[f"src/main/java/{effective_pkg_path}/domain/port/in/{entity_class}UseCase.java"] = use_case_port
-                    files[f"src/main/java/{effective_pkg_path}/domain/port/out/{entity_class}RepositoryPort.java"] = repo_port
-                    files[f"src/main/java/{effective_pkg_path}/application/service/{entity_class}ApplicationService.java"] = app_service
-                    files[f"src/main/java/{effective_pkg_path}/infrastructure/adapter/in/rest/{entity_class}Resource.java"] = rest_adapter
+                    files[f"src/main/java/{effective_pkg_path}/repository/{c_name}Repository.java"] = repo_code
+
+                # D. Service / UseCase
+                service_code = (
+                    f'package {effective_pkg}.service;\n\n'
+                    f'import {effective_pkg}.domain.{c_name};\n'
+                    f'import {effective_pkg}.dto.{c_name}RequestDTO;\n'
+                    f'import {effective_pkg}.dto.{c_name}ResponseDTO;\n'
+                    f'import {effective_pkg}.repository.{c_name}Repository;\n'
+                    'import jakarta.enterprise.context.ApplicationScoped;\n'
+                    'import jakarta.inject.Inject;\n'
+                    'import jakarta.transaction.Transactional;\n'
+                    'import jakarta.ws.rs.NotFoundException;\n'
+                    'import java.time.LocalDateTime;\n'
+                    'import java.util.List;\n'
+                    'import java.util.UUID;\n\n'
+                    '@ApplicationScoped\n'
+                    f'public class {c_name}Service {{\n\n'
+                    f'    @Inject\n    {c_name}Repository repository;\n\n'
+                    f'    @Transactional\n'
+                    f'    public {c_name}ResponseDTO create({c_name}RequestDTO request) {{\n'
+                    f'        var entity = new {c_name}();\n'
+                    '        entity.setId(UUID.randomUUID());\n'
+                    '        entity.setStatus("APPROVED");\n'
+                    '        repository.persist(entity);\n'
+                    f'        return new {c_name}ResponseDTO(entity.getId(), request.referenceCode(), request.amount(), "APPROVED", LocalDateTime.now());\n'
+                    '    }\n\n'
+                    f'    public {c_name}ResponseDTO getById(UUID id) {{\n'
+                    '        return repository.findByIdOptional(id)\n'
+                    f'            .map(e -> new {c_name}ResponseDTO(e.getId(), "REF-100", java.math.BigDecimal.valueOf(100), "ACTIVE", LocalDateTime.now()))\n'
+                    f'            .orElseThrow(() -> new NotFoundException("{c_name} con ID " + id + " no encontrado"));\n'
+                    '    }\n\n'
+                    f'    public List<{c_name}ResponseDTO> listAll() {{\n'
+                    '        return repository.listAll().stream()\n'
+                    f'            .map(e -> new {c_name}ResponseDTO(e.getId(), "REF-ALL", java.math.BigDecimal.TEN, "ACTIVE", LocalDateTime.now()))\n'
+                    '            .toList();\n'
+                    '    }}\n'
+                    '}\n'
+                )
+                files[f"src/main/java/{effective_pkg_path}/service/{c_name}Service.java"] = service_code
+
+                # E. Reactive REST Resource Controller
+                resource_code = (
+                    f'package {effective_pkg}.resource;\n\n'
+                    f'import {effective_pkg}.dto.{c_name}RequestDTO;\n'
+                    f'import {effective_pkg}.dto.{c_name}ResponseDTO;\n'
+                    f'import {effective_pkg}.service.{c_name}Service;\n'
+                    'import io.smallrye.mutiny.Uni;\n'
+                    'import jakarta.annotation.security.RolesAllowed;\n'
+                    'import jakarta.inject.Inject;\n'
+                    'import jakarta.validation.Valid;\n'
+                    'import jakarta.ws.rs.*;\n'
+                    'import jakarta.ws.rs.core.MediaType;\n'
+                    'import jakarta.ws.rs.core.Response;\n'
+                    'import org.eclipse.microprofile.openapi.annotations.Operation;\n'
+                    'import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;\n'
+                    'import java.net.URI;\n'
+                    'import java.util.List;\n'
+                    'import java.util.UUID;\n\n'
+                    f'@Path("/api/v1/{lower_name}s")\n'
+                    '@Produces(MediaType.APPLICATION_JSON)\n'
+                    '@Consumes(MediaType.APPLICATION_JSON)\n'
+                    f'public class {c_name}Resource {{\n\n'
+                    f'    @Inject\n    {c_name}Service service;\n\n'
+                    f'    @POST\n'
+                    f'    @Operation(summary = "Registrar nuevo {c_name} transaccional")\n'
+                    '    @APIResponse(responseCode = "201", description = "Recurso creado con éxito")\n'
+                    '    @APIResponse(responseCode = "400", description = "Datos de entrada inválidos")\n'
+                    '    @RolesAllowed({"ADMIN", "OPERATOR"})\n'
+                    f'    public Uni<Response> create(@Valid {c_name}RequestDTO dto) {{\n'
+                    '        return Uni.createFrom().item(() -> service.create(dto))\n'
+                    f'            .map(res -> Response.created(URI.create("/api/v1/{lower_name}s/" + res.id())).entity(res).build());\n'
+                    '    }\n\n'
+                    f'    @GET\n    @Path("/{{id}}")\n'
+                    f'    @Operation(summary = "Consultar {c_name} por UUID")\n'
+                    '    @APIResponse(responseCode = "200", description = "Detalle del recurso")\n'
+                    '    @APIResponse(responseCode = "404", description = "Recurso no encontrado")\n'
+                    '    @RolesAllowed({"ADMIN", "OPERATOR", "AUDITOR"})\n'
+                    '    public Uni<Response> getById(@PathParam("id") UUID id) {\n'
+                    '        return Uni.createFrom().item(() -> service.getById(id))\n'
+                    '            .map(res -> Response.ok(res).build());\n'
+                    '    }\n\n'
+                    f'    @GET\n'
+                    f'    @Operation(summary = "Listar {c_name}s activos")\n'
+                    '    @RolesAllowed({"ADMIN", "OPERATOR", "AUDITOR"})\n'
+                    f'    public Uni<List<{c_name}ResponseDTO>> listAll() {{\n'
+                    '        return Uni.createFrom().item(() -> service.listAll());\n'
+                    '    }\n'
+                    '}\n'
+                )
+                files[f"src/main/java/{effective_pkg_path}/resource/{c_name}Resource.java"] = resource_code
 
             output = {"files": files}
             output_str = json.dumps(output, indent=2)
@@ -675,63 +782,61 @@ class MockLLMClient(BaseLLMClient):
         # Node 4: Tests generation prompt
         # -------------------------------------------------------------
         if "TESTS_NODE" in system_prompt:
-            bp_match = re.search(r"Blueprint:\s*(\{.*?\})", user_prompt, re.DOTALL)
-            bp = {}
-            if bp_match:
-                try:
-                    bp = json.loads(bp_match.group(1))
-                except Exception:
-                    pass
+            bp = _extract_blueprint_from_prompt(user_prompt)
 
             effective_pkg = bp.get("package_prefix", package_prefix)
             effective_pkg_path = effective_pkg.replace(".", "/")
-            entity_class = entity_name.capitalize()
-            lower_name = entity_class.lower()
+            effective_entities = bp.get("entities", entities)
 
-            unit_test = (
-                f'package {effective_pkg};\n\n'
-                'import org.junit.jupiter.api.Test;\n'
-                'import static org.junit.jupiter.api.Assertions.*;\n'
-                'import java.math.BigDecimal;\n\n'
-                f'public class {entity_class}UnitTest {{\n'
-                '    @Test\n'
-                f'    void test{entity_class}DomainValidation() {{\n'
-                '        BigDecimal amount = new BigDecimal("250.00");\n'
-                '        assertNotNull(amount);\n'
-                '        assertTrue(amount.compareTo(BigDecimal.ZERO) > 0);\n'
-                '    }}\n'
-                '}\n'
-            )
+            test_files = {}
+            for ent in effective_entities:
+                c_name = ent.get("name", "Account").capitalize()
+                lower_name = c_name.lower()
 
-            api_test = (
-                f'package {effective_pkg};\n\n'
-                'import io.quarkus.test.junit.QuarkusTest;\n'
-                'import org.junit.jupiter.api.Test;\n'
-                'import static io.restassured.RestAssured.given;\n'
-                'import static org.hamcrest.CoreMatchers.notNullValue;\n\n'
-                '@QuarkusTest\n'
-                f'public class {entity_class}ResourceTest {{\n'
-                '    @Test\n'
-                f'    void testGet{entity_class}Endpoint() {{\n'
-                '        given()\n'
-                f'          .when().get("/api/v1/{lower_name}s/txn-12345")\n'
-                '          .then()\n'
-                '             .statusCode(200)\n'
-                '             .body("id", notNullValue());\n'
-                '    }}\n'
-                '}\n'
-            )
+                test_code = (
+                    f'package {effective_pkg}.resource;\n\n'
+                    'import io.quarkus.test.junit.QuarkusTest;\n'
+                    'import io.quarkus.test.security.TestSecurity;\n'
+                    'import io.restassured.http.ContentType;\n'
+                    'import org.junit.jupiter.api.Test;\n\n'
+                    'import static io.restassured.RestAssured.given;\n'
+                    'import static org.hamcrest.CoreMatchers.*;\n\n'
+                    '@QuarkusTest\n'
+                    f'public class {c_name}ResourceTest {{\n\n'
+                    '    @Test\n'
+                    '    @TestSecurity(user = "adminUser", roles = {"ADMIN"})\n'
+                    f'    public void testCreate{c_name}() {{\n'
+                    '        String payload = """\n'
+                    '            {\n'
+                    '                "referenceCode": "TEST-2026-001",\n'
+                    '                "amount": 5000.00,\n'
+                    '                "description": "Prueba de validación Quarkus"\n'
+                    '            }\n'
+                    '        """;\n\n'
+                    '        given()\n'
+                    '            .contentType(ContentType.JSON)\n'
+                    '            .body(payload)\n'
+                    '            .when()\n'
+                    f'            .post("/api/v1/{lower_name}s")\n'
+                    '            .then()\n'
+                    '            .statusCode(anyOf(is(201), is(200)))\n'
+                    '            .body("status", notNullValue());\n'
+                    '    }\n\n'
+                    '    @Test\n'
+                    '    @TestSecurity(user = "auditorUser", roles = {"AUDITOR"})\n'
+                    f'    public void testList{c_name}s() {{\n'
+                    '        given()\n'
+                    '            .when()\n'
+                    f'            .get("/api/v1/{lower_name}s")\n'
+                    '            .then()\n'
+                    '            .statusCode(200);\n'
+                    '    }\n'
+                    '}\n'
+                )
+                test_files[f"src/test/java/{effective_pkg_path}/resource/{c_name}ResourceTest.java"] = test_code
 
-            output = {
-                "files": {
-                    f"src/test/java/{effective_pkg_path}/{entity_class}UnitTest.java": unit_test,
-                    f"src/test/java/{effective_pkg_path}/{entity_class}ResourceTest.java": api_test,
-                }
-            }
+            output = {"files": test_files}
             output_str = json.dumps(output, indent=2)
             return output_str, prompt_tokens, len(output_str.split())
 
-        # Fallback
-        fallback = {"status": "ok", "message": "Mock generation executed"}
-        fallback_str = json.dumps(fallback)
-        return fallback_str, prompt_tokens, len(fallback_str.split())
+        return "{}", prompt_tokens, 0
