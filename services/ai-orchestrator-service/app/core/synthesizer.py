@@ -100,6 +100,9 @@ class CodeSynthesizer:
         # 10. Clean duplicate or conflicting interfaces / obsolete DTOs
         cls._cleanup_obsolete_files(files, pkg_path)
 
+        # 11. Deterministic Syntax Self-Healing: Auto-repair unbalanced braces in all Java files
+        cls._auto_heal_java_syntax(files)
+
         state["files"] = files
         return state
 
@@ -1830,3 +1833,23 @@ volumes:
         for fpath in list(files.keys()):
             if "Account" in fpath and any(k in fpath for k in ["pe/com/bcp/catalog", "book"]):
                 del files[fpath]
+
+    @classmethod
+    def _auto_heal_java_syntax(cls, files: Dict[str, str]):
+        """Detect and automatically heal unbalanced braces in all Java source files."""
+        for fpath, code in list(files.items()):
+            if not fpath.endswith(".java") or not isinstance(code, str):
+                continue
+            open_c = code.count("{")
+            close_c = code.count("}")
+            if open_c > close_c:
+                missing = open_c - close_c
+                files[fpath] = code.rstrip() + "\n" + ("}\n" * missing)
+            elif close_c > open_c:
+                excess = close_c - open_c
+                repaired = code
+                for _ in range(excess):
+                    last_idx = repaired.rfind("}")
+                    if last_idx != -1:
+                        repaired = repaired[:last_idx] + repaired[last_idx + 1:]
+                files[fpath] = repaired

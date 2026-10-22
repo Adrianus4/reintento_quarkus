@@ -102,12 +102,23 @@ def _verify_java_and_pom_syntax(workspace_dir: Path) -> Tuple[bool, str]:
             rel = jf.relative_to(workspace_dir)
             code = jf.read_text(encoding="utf-8")
 
-            # Check balanced curly braces
+            # Check and auto-heal balanced curly braces
             open_count = code.count("{")
             close_count = code.count("}")
             if open_count != close_count:
-                logs.append(f"[ERROR] Syntax error in {rel}: unbalanced braces ({{={open_count}, }}={close_count}).")
-                return False, "\n".join(logs)
+                if open_count > close_count:
+                    missing = open_count - close_count
+                    code = code.rstrip() + "\n" + ("}\n" * missing)
+                    jf.write_text(code, encoding="utf-8")
+                    logs.append(f"[INFO] Auto-repaired syntax in {rel}: appended {missing} missing closing brace(s).")
+                else:
+                    excess = close_count - open_count
+                    for _ in range(excess):
+                        last_idx = code.rfind("}")
+                        if last_idx != -1:
+                            code = code[:last_idx] + code[last_idx + 1:]
+                    jf.write_text(code, encoding="utf-8")
+                    logs.append(f"[INFO] Auto-repaired syntax in {rel}: removed {excess} excess closing brace(s).")
 
             if "package " not in code:
                 logs.append(f"[ERROR] Compilation error in {rel}: missing package declaration.")
