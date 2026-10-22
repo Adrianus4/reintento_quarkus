@@ -32,17 +32,24 @@ class GeminiClient(BaseLLMClient):
         self.provider = "gemini"
 
     def _clean_key(self) -> str:
-        """Strip surrounding quotes, whitespace, or accidental Bearer prefix without altering key."""
-        k = (self.api_key or "").strip()
-        changed = True
-        while changed:
-            changed = False
-            if (k.startswith('"') and k.endswith('"')) or (k.startswith("'") and k.endswith("'")):
-                k = k[1:-1].strip()
-                changed = True
-            if k.lower().startswith("bearer "):
-                k = k[7:].strip()
-                changed = True
+        """Strip surrounding quotes, whitespace, accidental labels ('código:', 'key:') or Bearer prefix."""
+        k = (self.api_key or "").strip().strip("'\" `\t\r\n")
+        # 1. Direct Regex pattern extraction for Google Gemini API Key
+        match = re.search(r'(AIzaSy[A-Za-z0-9_\-]{30,})', k)
+        if match:
+            return match.group(1).strip()
+
+        # 2. Strip any common prefix in Spanish or English
+        k = re.sub(r'^(?:bearer|api[_\s\-]*key|c[oó]digo|clave|token)\s*[:=]?\s*', '', k, flags=re.IGNORECASE)
+        k = (self.api_key or "").strip().strip("'\" `\t\r\n")
+
+        # 3. If there are non-ASCII characters, extract pure alphanumeric chars
+        try:
+            k.encode('ascii')
+        except UnicodeEncodeError:
+            ascii_chars = re.sub(r'[^A-Za-z0-9_\-]', '', k)
+            if len(ascii_chars) >= 20:
+                return ascii_chars
         return k
 
     def _discover_supported_models(self, client: httpx.Client, key: str) -> Tuple[List[str], str]:
@@ -153,6 +160,12 @@ class GeminiClient(BaseLLMClient):
         key = self._clean_key()
         if not key or len(key) < 8:
             return False, "La API Key ingresada es demasiado corta o vacía."
+
+        try:
+            key.encode('ascii')
+        except UnicodeEncodeError:
+            return False, "La API Key contiene caracteres no válidos o texto en español (como 'código:' o tildes). Asegúrese de copiar únicamente la clave de Google AI Studio (ej: AIzaSy...)."
+
 
         payload = {
             "contents": [{"parts": [{"text": "ping"}]}],

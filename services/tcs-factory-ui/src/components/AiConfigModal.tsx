@@ -69,6 +69,29 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({
   const [selectedProvider, setSelectedProvider] = useState<string>('OPENAI');
   const [apiKey, setApiKey] = useState<string>('');
   const [showKey, setShowKey] = useState<boolean>(false);
+
+  const cleanKeyInput = (val: string, provider: string): string => {
+    let clean = (val || '').trim();
+    // 1. Auto-extract key pattern if pasted with Spanish labels like 'código: AIzaSy...'
+    if (provider === 'GEMINI') {
+      const match = clean.match(/(AIzaSy[A-Za-z0-9_\-]{30,})/);
+      if (match) return match[1];
+    } else if (provider === 'ANTHROPIC') {
+      const match = clean.match(/(sk-ant-[A-Za-z0-9_\-]{20,})/);
+      if (match) return match[1];
+    } else if (['OPENAI', 'DEEPSEEK', 'GROQ', 'GROK', 'OPENROUTER'].includes(provider)) {
+      const match = clean.match(/((?:sk|gsk)_[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9_\-]{20,})/);
+      if (match) return match[1];
+    }
+    // 2. Remove common prefixes
+    clean = clean.replace(/^(?:bearer|api[_\s\-]*key|c[oó]digo|clave|token)\s*[:=]?\s*/i, '').trim();
+    clean = clean.replace(/^[\"'`]+|[\"'`]+$/g, '').trim();
+    return clean;
+  };
+
+  const handleKeyChange = (val: string) => {
+    setApiKey(cleanKeyInput(val, selectedProvider));
+  };
   const [modelName, setModelName] = useState<string>('gpt-4o');
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -98,8 +121,9 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({
     }
     setIsTesting(true);
     setFeedback(null);
+    const sanitizedKey = cleanKeyInput(apiKey, selectedProvider);
     try {
-      const res = await api.orchestrator.testVaultKey(selectedProvider, apiKey, modelName);
+      const res = await api.orchestrator.testVaultKey(selectedProvider, sanitizedKey, modelName);
       if (res.status === 'OK') {
         setFeedback({
           success: true,
@@ -126,11 +150,12 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({
     }
     setIsSaving(true);
     setFeedback(null);
+    const sanitizedKey = cleanKeyInput(apiKey, selectedProvider);
     try {
-      if (apiKey) {
+      if (sanitizedKey) {
         await api.orchestrator.setVaultKey({
           provider: selectedProvider,
-          api_key: apiKey,
+          api_key: sanitizedKey,
         });
       }
       await api.orchestrator.updateGatewayConfig({
@@ -284,7 +309,7 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({
               <input
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => handleKeyChange(e.target.value)}
                 placeholder={selectedProvider === 'OLLAMA' ? 'No requerida para Ollama local' : `Pega tu API Key de ${selectedProvider} aquí`}
                 className="w-full pr-10 pl-3.5 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:outline-none focus:border-tcs-cyan font-mono"
               />

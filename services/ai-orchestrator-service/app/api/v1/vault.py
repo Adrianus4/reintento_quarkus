@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_optional_user, require_admin_or_local
 from app.core.database import get_db
-from app.core.vault import decrypt_secret, encrypt_secret, mask_secret
+from app.core.vault import decrypt_secret, encrypt_secret, mask_secret, sanitize_api_key
 from app.models.credential import VaultCredential
 from app.schemas.vault import (
     TestConnectionRequest,
@@ -49,12 +49,13 @@ def setup_direct_key(
     db: Session = Depends(get_db)
 ) -> Any:
     """Setup and activate an API Key directly with zero gateway configuration."""
-    api_key = payload.get("api_key", "").strip()
-    if not api_key:
+    raw_key = payload.get("api_key", "").strip()
+    if not raw_key:
         raise HTTPException(status_code=400, detail="Debe ingresar una API Key válida.")
 
     model_name = payload.get("model_name", "").strip() or None
     provider = payload.get("provider", "").strip().lower()
+    api_key = sanitize_api_key(raw_key, provider)
 
     # Prioritize user explicit selection (GEMINI, DEEPSEEK, OPENAI, ANTHROPIC, etc.)
     valid_providers = ["deepseek", "gemini", "openai", "anthropic", "grok", "groq", "openrouter", "ollama"]
@@ -228,7 +229,8 @@ def test_vault_connection(
 ) -> Any:
     """Test connectivity and authentication for a configured AI provider (live or saved key)."""
     provider_clean = payload.provider.lower().strip()
-    api_key = payload.api_key.strip() if payload.api_key and payload.api_key.strip() else None
+    raw_key = payload.api_key.strip() if payload.api_key and payload.api_key.strip() else None
+    api_key = sanitize_api_key(raw_key, provider_clean) if raw_key else None
 
     if not api_key:
         cred = db.query(VaultCredential).filter(
