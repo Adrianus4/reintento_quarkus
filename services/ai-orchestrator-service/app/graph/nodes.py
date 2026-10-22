@@ -93,7 +93,10 @@ def spec_builder_node(state: JobState, llm: BaseLLMClient) -> JobState:
     cfg = state.get("config", {})
     client_code = state["client_code"].lower()
     gov = state.get("governance_context", {}).get("client", {})
-    pkg_prefix = cfg.get("package_prefix") or gov.get("package_prefix", f"pe.com.{client_code}")
+    from app.core.package_names import suggested_package_prefix
+    pkg_prefix = cfg.get("package_prefix") or suggested_package_prefix(gov.get("package_prefix") or f"pe.com.{client_code}")
+    cfg["package_prefix"] = pkg_prefix
+    state["config"] = cfg
 
     system_prompt = load_prompt_template("spec_builder.md")
     if not system_prompt:

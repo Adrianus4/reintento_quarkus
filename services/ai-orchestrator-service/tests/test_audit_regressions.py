@@ -8,6 +8,13 @@ from app.graph.nodes import sandbox_gate_node
 from app.graph.nodes import walking_skeleton_node, static_gates_node
 from app.core.synthesizer import CodeSynthesizer
 from app.graph import workflow
+from app.core.package_names import suggested_package_prefix
+
+
+@pytest.mark.parametrize('value,expected', [('pe.com.001','pe.com.client_001'),
+    ('com.tcs.bank.customer','com.tcs.bank.customer'),('pe.com.class','pe.com.client_class')])
+def test_suggested_packages_have_valid_identifiers(value,expected):
+    assert suggested_package_prefix(value)==expected
 
 
 def test_explicit_mock_never_looks_up_credentials(monkeypatch):

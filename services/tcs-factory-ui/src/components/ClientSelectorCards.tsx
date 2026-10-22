@@ -1,7 +1,7 @@
 // src/components/ClientSelectorCards.tsx
 import React, { useState } from 'react';
 import { ClientProfile } from '../types';
-import { api } from '../services/api';
+import { api, suggestedPackagePrefix } from '../services/api';
 
 interface ClientSelectorCardsProps {
   clients: ClientProfile[];
@@ -54,7 +54,7 @@ export const ClientSelectorCards: React.FC<ClientSelectorCardsProps> = ({
         code: cleanCode,
         name: newName.trim(),
         description: newDesc.trim() || undefined,
-        package_prefix: newPackagePrefix.trim() || `pe.com.${cleanCode}`,
+        package_prefix: newPackagePrefix.trim() || suggestedPackagePrefix(`pe.com.${cleanCode}`),
         java_version: newJavaVersion,
         quarkus_version: newQuarkusVersion,
       });

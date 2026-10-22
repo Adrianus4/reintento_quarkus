@@ -346,6 +346,8 @@ def infer_microservice_spec(
 ) -> Any:
     """Analyze natural language requirements and automatically structure all 7 architectural phases."""
     client_code = payload.get("client_code", "bcp").lower()
+    from app.core.package_names import suggested_package_prefix
+    suggested_root = suggested_package_prefix(f"pe.com.{client_code}")
     requirements = payload.get("requirements", "").strip()
     req_lower = requirements.lower()
 
@@ -491,7 +493,7 @@ def infer_microservice_spec(
         ]
         return {
             "artifact_id": f"{client_code}-cuentas-service",
-            "package_prefix": f"pe.com.{client_code}.cuentas",
+            "package_prefix": f"{suggested_root}.cuentas",
             "http_port": 8080,
             "java_version": "21",
             "quarkus_version": "3.15.1",
@@ -539,7 +541,7 @@ def infer_microservice_spec(
 
     return {
         "artifact_id": f"{client_code}-{domain_name}-service",
-        "package_prefix": f"pe.com.{client_code}.{domain_name}",
+        "package_prefix": f"{suggested_root}.{domain_name}",
         "http_port": 8080,
         "java_version": "21",
         "quarkus_version": "3.15.1",

@@ -1,5 +1,13 @@
 // src/services/api.ts
 
+export function suggestedPackagePrefix(value: string): string {
+  const reserved = new Set('abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while record var yield'.split(' '));
+  return value.split('.').map(segment => {
+    const part = segment.replace(/[^A-Za-z0-9_$]/g, '_');
+    return !part || /^\d/.test(part) || reserved.has(part) ? `client_${part}` : part;
+  }).join('.');
+}
+
 const PORTS = {
   AUTH: 'http://localhost:8001/api/v1',
   GOVERNANCE: 'http://localhost:8002/api/v1',

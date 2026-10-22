@@ -18,8 +18,14 @@ function harness(response) {
     document: { createElement: () => anchor, body: { appendChild() {} } }, setTimeout: fn => fn()
   };
   vm.runInNewContext(source, context);
-  return { download: context.exports.downloadZip, state, anchor };
+  return { download: context.exports.downloadZip, suggested: context.exports.suggestedPackagePrefix, state, anchor };
 }
+
+test('numeric clients receive a valid suggested Java package', () => {
+  const h = harness();
+  assert.equal(h.suggested('pe.com.001'), 'pe.com.client_001');
+  assert.equal(h.suggested('com.tcs.inventory'), 'com.tcs.inventory');
+});
 test('sends the session and downloads an actual ZIP with its filename', async () => {
   const h = harness(new Response(new Uint8Array([80,75,3,4,1]), { headers: { 'Content-Disposition': 'attachment; filename="project.zip"' } }));
   await h.download('/api/download');

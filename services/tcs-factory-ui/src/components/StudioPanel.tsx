@@ -2,7 +2,7 @@ import { DownloadButton } from './DownloadButton';
 // src/components/StudioPanel.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { api, suggestedPackagePrefix } from '../services/api';
 import { CodeViewer } from './CodeViewer';
 import { ClientSelectorCards } from './ClientSelectorCards';
 import { VerifierModal } from './VerifierModal';
@@ -161,7 +161,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
     setActiveClient(client);
     const code = (client.code || client.client_id || '').toLowerCase();
     setSelectedClient(code);
-    setPackagePrefix(client.package_prefix || `pe.com.${code}`);
+    setPackagePrefix(suggestedPackagePrefix(client.package_prefix || `pe.com.${code}`));
     setJavaVersion(client.java_version || '21');
     setArtifactId(`${code}-nuevo-servicio`);
     setDatabaseName(`${code}_db`);
@@ -215,7 +215,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
       });
 
       if (res.artifact_id) setArtifactId(res.artifact_id);
-      if (res.package_prefix) setPackagePrefix(res.package_prefix);
+      if (res.package_prefix) setPackagePrefix(suggestedPackagePrefix(res.package_prefix));
       if (res.database_name) setDatabaseName(res.database_name);
       if (res.database_option) setDatabaseOption(res.database_option);
       if (res.architecture_style) setArchStyle(res.architecture_style);
@@ -316,7 +316,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
         custom_endpoints: customEndpoints,
         database_option: databaseOption,
         database_name: databaseName,
-        package_prefix: packagePrefix || `pe.com.${selectedClient}`,
+        package_prefix: packagePrefix || suggestedPackagePrefix(`pe.com.${selectedClient}`),
         artifact_id: artifactId || `${selectedClient}-service`,
         http_port: httpPort,
         java_version: javaVersion,
@@ -491,7 +491,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-mono text-tcs-muted">
-              <span className="text-tcs-cyan font-semibold">{packagePrefix || `pe.com.${selectedClient}`}</span>
+              <span className="text-tcs-cyan font-semibold">{packagePrefix || suggestedPackagePrefix(`pe.com.${selectedClient}`)}</span>
               <span>•</span>
               <span className="text-white">Build: {buildTool.toUpperCase()}</span>
               <span>•</span>
@@ -1585,7 +1585,7 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
               <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
                 <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">1. Stack & Identidad</div>
                 <div className="text-white font-bold">{artifactId || '(Pendiente análisis)'}</div>
-                <div className="text-tcs-cyan font-mono text-[11px]">{packagePrefix || `pe.com.${selectedClient}`}</div>
+                <div className="text-tcs-cyan font-mono text-[11px]">{packagePrefix || suggestedPackagePrefix(`pe.com.${selectedClient}`)}</div>
                 <div className="text-tcs-muted text-[11px]">
                   {buildTool.toUpperCase()} • Java {javaVersion} • Quarkus {quarkusVersion}
                 </div>
