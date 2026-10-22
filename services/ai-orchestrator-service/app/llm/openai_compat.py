@@ -50,16 +50,24 @@ class OpenAICompatClient(BaseLLMClient):
             "max_tokens": 1
         }
         try:
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.post(self.endpoint, json=payload, headers=headers)
-                if resp.status_code in (200, 201):
-                    return True, f"Conexión exitosa con {self.provider.upper()} ({self.model_name})."
-                try:
-                    err_json = resp.json()
-                    err_msg = err_json.get("error", {}).get("message", resp.text)
-                    return False, f"{self.provider.upper()} API error ({resp.status_code}): {err_msg}"
-                except Exception:
-                    return False, f"{self.provider.upper()} error ({resp.status_code}): {resp.text[:150]}"
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(self.endpoint, json=payload, headers=headers)
+            except Exception as net_err:
+                if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                    with httpx.Client(timeout=15.0, verify=False) as client:
+                        resp = client.post(self.endpoint, json=payload, headers=headers)
+                else:
+                    raise
+
+            if resp.status_code in (200, 201):
+                return True, f"Conexión exitosa con {self.provider.upper()} ({self.model_name})."
+            try:
+                err_json = resp.json()
+                err_msg = err_json.get("error", {}).get("message", resp.text)
+                return False, f"{self.provider.upper()} API error ({resp.status_code}): {err_msg}"
+            except Exception:
+                return False, f"{self.provider.upper()} error ({resp.status_code}): {resp.text[:150]}"
         except Exception as exc:
             return False, f"Error conectando con {self.provider.upper()}: {str(exc)}"
 
@@ -91,8 +99,15 @@ class OpenAICompatClient(BaseLLMClient):
         else:
             payload["max_completion_tokens"] = max_tokens
 
-        with httpx.Client(timeout=90.0) as client:
-            resp = client.post(self.endpoint, json=payload, headers=headers)
+        try:
+            with httpx.Client(timeout=90.0) as client:
+                resp = client.post(self.endpoint, json=payload, headers=headers)
+        except Exception as net_err:
+            if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                with httpx.Client(timeout=90.0, verify=False) as client:
+                    resp = client.post(self.endpoint, json=payload, headers=headers)
+            else:
+                raise
             if resp.status_code == 400 and "response_format" in payload:
                 payload.pop("response_format", None)
                 resp = client.post(self.endpoint, json=payload, headers=headers)

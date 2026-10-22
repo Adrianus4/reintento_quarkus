@@ -1,11 +1,8 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.api import api_router
-from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
-from app.models.gateway_config import GatewayConfig
-
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -14,7 +11,7 @@ from sqlalchemy import text
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
-from app.models.gateway_config import GatewayConfig
+from app.models import VaultCredential, GatewayConfig, GenerationJob
 
 
 @asynccontextmanager

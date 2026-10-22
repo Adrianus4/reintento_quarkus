@@ -1,9 +1,9 @@
 # scripts/start_factory.ps1
-# TCS Intelligent Microservice Factory — Distributed Cluster Launcher
+# TCS Intelligent Microservice Factory -- Distributed Cluster Launcher
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "   TATA CONSULTANCY SERVICES (TCS)                          " -ForegroundColor White
-Write-Host "   Intelligent Microservice Factory — Multi-Agent Cluster   " -ForegroundColor Cyan
+Write-Host "   Intelligent Microservice Factory -- Multi-Agent Cluster   " -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 

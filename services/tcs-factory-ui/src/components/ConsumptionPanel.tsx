@@ -26,21 +26,17 @@ export const ConsumptionPanel: React.FC = () => {
     fetchTelemetry();
   }, []);
 
-  // Strict Live AI Filter: Exclude all legacy mock records from telemetry
-  const allRecords = (telemetry?.recent_records || []).filter(
-    (rec: ConsumptionRecord) => (rec.provider || '').toLowerCase() !== 'mock'
-  );
-
-  const totalTokens = allRecords.reduce((acc, r) => acc + (r.total_tokens || 0), 0);
-  const promptTokens = allRecords.reduce((acc, r) => acc + (r.prompt_tokens || 0), 0);
-  const completionTokens = allRecords.reduce((acc, r) => acc + (r.completion_tokens || 0), 0);
-  const totalCost = allRecords.reduce((acc, r) => acc + (r.cost_usd || 0), 0);
-  const totalJobs = allRecords.length;
-
-  const filteredRecords = allRecords.filter((rec: ConsumptionRecord) => {
+  const rawRecords: ConsumptionRecord[] = telemetry?.recent_records || telemetry?.records || [];
+  const filteredRecords = rawRecords.filter((rec: ConsumptionRecord) => {
     if (selectedProviderFilter === 'ALL') return true;
     return (rec.provider || '').toUpperCase() === selectedProviderFilter.toUpperCase();
   });
+
+  const totalTokens = rawRecords.reduce((acc: number, r: ConsumptionRecord) => acc + (r.total_tokens || 0), 0);
+  const promptTokens = rawRecords.reduce((acc: number, r: ConsumptionRecord) => acc + (r.prompt_tokens || 0), 0);
+  const completionTokens = rawRecords.reduce((acc: number, r: ConsumptionRecord) => acc + (r.completion_tokens || 0), 0);
+  const totalCost = rawRecords.reduce((acc: number, r: ConsumptionRecord) => acc + (r.cost_usd || 0), 0);
+  const totalJobs = rawRecords.length;
 
   return (
     <div className="space-y-6">
@@ -117,13 +113,13 @@ export const ConsumptionPanel: React.FC = () => {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK'].map((prov) => {
+          {['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ', 'MOCK'].map((prov) => {
             const data = telemetry?.by_provider?.[prov] || telemetry?.by_provider?.[prov.toLowerCase()];
             const tokens = data?.total_tokens || 0;
             const prompt = data?.prompt_tokens || 0;
             const completion = data?.completion_tokens || 0;
-            const cost = data?.total_cost_usd || 0;
-            const count = data?.job_count || 0;
+            const cost = data?.total_cost_usd || data?.cost_usd || 0;
+            const count = data?.job_count || data?.jobs_count || 0;
 
             const providerColor =
               prov === 'GEMINI'
@@ -132,6 +128,10 @@ export const ConsumptionPanel: React.FC = () => {
                 ? 'border-indigo-500/40 bg-indigo-950/10'
                 : prov === 'GROK'
                 ? 'border-purple-500/40 bg-purple-950/10'
+                : prov === 'GROQ'
+                ? 'border-emerald-500/40 bg-emerald-950/10'
+                : prov === 'MOCK'
+                ? 'border-amber-500/40 bg-amber-950/10'
                 : 'border-slate-600/40 bg-slate-900/20';
 
             return (
@@ -183,12 +183,14 @@ export const ConsumptionPanel: React.FC = () => {
               onChange={(e) => setSelectedProviderFilter(e.target.value)}
               className="px-2.5 py-1 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue"
             >
-              <option value="ALL">Todos los Proveedores (En Vivo)</option>
+              <option value="ALL">Todos los Proveedores</option>
               <option value="GEMINI">Gemini</option>
               <option value="OPENAI">OpenAI</option>
               <option value="ANTHROPIC">Anthropic</option>
               <option value="DEEPSEEK">DeepSeek</option>
               <option value="GROK">Grok</option>
+              <option value="GROQ">Groq</option>
+              <option value="MOCK">Mock</option>
             </select>
           </div>
         </div>
@@ -216,7 +218,7 @@ export const ConsumptionPanel: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((rec) => (
+                filteredRecords.map((rec: ConsumptionRecord) => (
                   <tr key={rec.job_id} className="hover:bg-tcs-surface/40 transition-colors">
                     <td className="py-2 px-3 text-white font-bold">{rec.job_id}</td>
                     <td className="py-2 px-3">

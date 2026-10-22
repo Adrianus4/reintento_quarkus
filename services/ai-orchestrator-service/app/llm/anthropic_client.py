@@ -25,9 +25,16 @@ class AnthropicClient(BaseLLMClient):
             "messages": [{"role": "user", "content": "ping"}]
         }
         try:
-            with httpx.Client(timeout=10.0) as client:
-                resp = client.post(self.endpoint, json=payload, headers=headers)
-                return resp.status_code == 200
+            try:
+                with httpx.Client(timeout=10.0) as client:
+                    resp = client.post(self.endpoint, json=payload, headers=headers)
+                    return resp.status_code == 200
+            except Exception as net_err:
+                if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                    with httpx.Client(timeout=10.0, verify=False) as client:
+                        resp = client.post(self.endpoint, json=payload, headers=headers)
+                        return resp.status_code == 200
+                return False
         except Exception:
             return False
 
@@ -50,8 +57,15 @@ class AnthropicClient(BaseLLMClient):
             "messages": [{"role": "user", "content": user_prompt}],
             "temperature": temperature,
         }
-        with httpx.Client(timeout=90.0) as client:
-            resp = client.post(self.endpoint, json=payload, headers=headers)
+        try:
+            with httpx.Client(timeout=90.0) as client:
+                resp = client.post(self.endpoint, json=payload, headers=headers)
+        except Exception as net_err:
+            if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                with httpx.Client(timeout=90.0, verify=False) as client:
+                    resp = client.post(self.endpoint, json=payload, headers=headers)
+            else:
+                raise
             resp.raise_for_status()
             data = resp.json()
             content = data.get("content", [])

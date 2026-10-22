@@ -46,12 +46,28 @@ def main():
     print("=" * 64)
     print()
 
+    headless = "--headless" in sys.argv or "--background" in sys.argv or "--no-window" in sys.argv
+    logs_dir = BASE_DIR / ".logs"
+    if headless:
+        logs_dir.mkdir(exist_ok=True)
+        print(f"[*] Modo headless activado. Logs en: {logs_dir}")
+
     processes = []
+    log_files = []
 
     print("[1/2] Iniciando los 4 microservicios backend...")
     for svc in SERVICES:
         print(f"  -> Levantando {svc['name']} en puerto {svc['port']}...")
-        if os.name == "nt":
+        if headless:
+            log_file = (logs_dir / f"{svc['name']}.log").open("a", encoding="utf-8")
+            log_files.append(log_file)
+            p = subprocess.Popen(
+                svc["cmd"],
+                cwd=str(svc["path"]),
+                stdout=log_file,
+                stderr=subprocess.STDOUT
+            )
+        elif os.name == "nt":
             # On Windows, spawn in a separate console window so logs can be inspected
             p = subprocess.Popen(
                 svc["cmd"],
@@ -67,7 +83,16 @@ def main():
     print("[2/2] Iniciando el Frontend Workspace Studio (tcs-factory-ui)...")
     ui_path = BASE_DIR / "services" / "tcs-factory-ui"
     npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
-    if os.name == "nt":
+    if headless:
+        ui_log = (logs_dir / "tcs-factory-ui.log").open("a", encoding="utf-8")
+        log_files.append(ui_log)
+        ui_proc = subprocess.Popen(
+            [npm_cmd, "run", "dev"],
+            cwd=str(ui_path),
+            stdout=ui_log,
+            stderr=subprocess.STDOUT
+        )
+    elif os.name == "nt":
         ui_proc = subprocess.Popen(
             [npm_cmd, "run", "dev"],
             cwd=str(ui_path),
@@ -99,6 +124,11 @@ def main():
         print("\nDeteniendo clúster...")
         for name, proc in processes:
             proc.terminate()
+        for f in log_files:
+            try:
+                f.close()
+            except Exception:
+                pass
         print("Clúster detenido.")
 
 if __name__ == "__main__":

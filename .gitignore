@@ -58,4 +58,5 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+.logs/
 scratch/

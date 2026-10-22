@@ -75,7 +75,9 @@ export interface ProviderTelemetry {
   prompt_tokens: number;
   completion_tokens: number;
   total_cost_usd: number;
+  cost_usd?: number;
   job_count: number;
+  jobs_count?: number;
 }
 
 export interface ConsumptionRecord {
@@ -99,6 +101,7 @@ export interface ConsumptionSummary {
   total_jobs: number;
   by_provider: Record<string, ProviderTelemetry>;
   recent_records: ConsumptionRecord[];
+  records?: ConsumptionRecord[];
 }
 
 export interface VaultCredentialStatus {

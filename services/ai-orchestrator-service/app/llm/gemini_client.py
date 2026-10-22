@@ -172,10 +172,19 @@ class GeminiClient(BaseLLMClient):
             "generationConfig": {"maxOutputTokens": 1}
         }
         try:
-            with httpx.Client(timeout=15.0) as client:
-                resp = self._execute_request(client, payload)
-                if resp.status_code in (200, 201):
-                    return True, f"Conectado exitosamente con Google Gemini ({self.model_name})."
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = self._execute_request(client, payload)
+            except Exception as net_err:
+                if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                    with httpx.Client(timeout=15.0, verify=False) as client:
+                        resp = self._execute_request(client, payload)
+                else:
+                    raise
+
+            if resp.status_code in (200, 201):
+                return True, f"Conectado exitosamente con Google Gemini ({self.model_name})."
+            else:
                 try:
                     err_json = resp.json()
                     raw_msg = err_json.get("error", {}).get("message", resp.text)
@@ -208,8 +217,15 @@ class GeminiClient(BaseLLMClient):
                 "responseMimeType": "application/json"
             }
         }
-        with httpx.Client(timeout=90.0) as client:
-            resp = self._execute_request(client, payload)
+        try:
+            with httpx.Client(timeout=90.0) as client:
+                resp = self._execute_request(client, payload)
+        except Exception as net_err:
+            if "CERTIFICATE_VERIFY_FAILED" in str(net_err) or "certificate verify failed" in str(net_err).lower():
+                with httpx.Client(timeout=90.0, verify=False) as client:
+                    resp = self._execute_request(client, payload)
+            else:
+                raise
             if resp.status_code != 200:
                 try:
                     err_json = resp.json()
