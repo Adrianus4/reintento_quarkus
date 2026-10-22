@@ -72,8 +72,21 @@ class MockLLMClient(BaseLLMClient):
         custom_properties = self._extract_json_field(user_prompt, "User Custom Properties")
 
         user_entities = self._extract_json_field(user_prompt, "User Defined Entities")
+        req_text = self._extract_param(user_prompt, "Requirements:", "").lower()
+        art_id = artifact_id.lower()
+
         if not user_entities or not isinstance(user_entities, list) or len(user_entities) == 0:
-            if "ibk" in client_code:
+            if any(k in req_text or k in art_id for k in ["prestamo", "loan", "credito", "hipotecari"]):
+                entity_name = "Loan"
+                fields = [
+                    {"name": "id", "type": "String", "required": True},
+                    {"name": "applicantDni", "type": "String", "required": True},
+                    {"name": "amount", "type": "BigDecimal", "required": True},
+                    {"name": "interestRate", "type": "BigDecimal", "required": True},
+                    {"name": "termMonths", "type": "Integer", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["transfer", "pago", "payment"]):
                 entity_name = "Transfer"
                 fields = [
                     {"name": "id", "type": "String", "required": True},
@@ -82,10 +95,38 @@ class MockLLMClient(BaseLLMClient):
                     {"name": "amount", "type": "BigDecimal", "required": True},
                     {"name": "status", "type": "String", "required": True},
                 ]
+            elif any(k in req_text or k in art_id for k in ["tarjeta", "card"]):
+                entity_name = "Card"
+                fields = [
+                    {"name": "id", "type": "String", "required": True},
+                    {"name": "cardNumber", "type": "String", "required": True},
+                    {"name": "cardHolder", "type": "String", "required": True},
+                    {"name": "cardType", "type": "String", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["notificac", "notification", "alert"]):
+                entity_name = "Notification"
+                fields = [
+                    {"name": "id", "type": "String", "required": True},
+                    {"name": "recipient", "type": "String", "required": True},
+                    {"name": "channel", "type": "String", "required": True},
+                    {"name": "message", "type": "String", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["cliente", "customer", "usuario", "user"]):
+                entity_name = "Customer"
+                fields = [
+                    {"name": "id", "type": "String", "required": True},
+                    {"name": "dni", "type": "String", "required": True},
+                    {"name": "fullName", "type": "String", "required": True},
+                    {"name": "email", "type": "String", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                ]
             else:
                 entity_name = "Account"
                 fields = [
                     {"name": "id", "type": "String", "required": True},
+                    {"name": "accountNumber", "type": "String", "required": True},
                     {"name": "balance", "type": "BigDecimal", "required": True},
                     {"name": "status", "type": "String", "required": True},
                 ]

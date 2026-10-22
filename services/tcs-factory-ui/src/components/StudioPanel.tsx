@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { CodeViewer } from './CodeViewer';
+import { ClientSelectorCards } from './ClientSelectorCards';
 import { VerifierModal } from './VerifierModal';
 import {
   ClientProfile,
@@ -16,7 +17,8 @@ import {
 export const StudioPanel: React.FC = () => {
   const { user } = useAuth();
   const [clients, setClients] = useState<ClientProfile[]>([]);
-  const [selectedClient, setSelectedClient] = useState<string>('ibk');
+  const [activeClient, setActiveClient] = useState<ClientProfile | null>(null);
+  const [selectedClient, setSelectedClient] = useState<string>('');
   const [contracts, setContracts] = useState<OpenApiSpecSummary[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string>('');
 
@@ -25,83 +27,41 @@ export const StudioPanel: React.FC = () => {
   const [activeStep, setActiveStep] = useState<number>(1);
 
   // --- 1. Project Identity Inputs ---
-  const [artifactId, setArtifactId] = useState<string>('ibk-transfers-service');
-  const [packagePrefix, setPackagePrefix] = useState<string>('pe.com.interbank');
+  const [artifactId, setArtifactId] = useState<string>('');
+  const [packagePrefix, setPackagePrefix] = useState<string>('');
   const [httpPort, setHttpPort] = useState<number>(8080);
   const [javaVersion, setJavaVersion] = useState<string>('21');
   const [quarkusVersion] = useState<string>('3.15.1');
 
   // --- 2. Architecture Inputs ---
   const [archStyle, setArchStyle] = useState<string>('Hexagonal');
-  const [customArchNotes, setCustomArchNotes] = useState<string>(
-    'Separación estricta entre puertos in/out, adaptadores REST e inmutabilidad en modelos de dominio.'
-  );
+  const [customArchNotes, setCustomArchNotes] = useState<string>('');
 
   // --- 3. Security Inputs ---
   const [securityOption, setSecurityOption] = useState<string>('JWT');
-  const [jwtIssuer, setJwtIssuer] = useState<string>('https://auth.interbank.pe');
-  const [securityRoles, setSecurityRoles] = useState<string>('ADMIN, OPERATOR, AUDITOR');
+  const [jwtIssuer, setJwtIssuer] = useState<string>('');
+  const [securityRoles, setSecurityRoles] = useState<string>('ADMIN, USER');
 
   // --- 4. Communication & Custom Endpoints Inputs ---
   const [commProtocol, setCommProtocol] = useState<string>('REST');
-  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([
-    {
-      method: 'POST',
-      path: '/api/v1/transfers',
-      summary: 'Ejecutar transferencia inmediata interbancaria con validación de saldo',
-    },
-    {
-      method: 'GET',
-      path: '/api/v1/transfers/{id}',
-      summary: 'Consultar estado y detalle de transferencia por UUID',
-    },
-    {
-      method: 'GET',
-      path: '/api/v1/transfers/accounts/{accountNumber}/history',
-      summary: 'Historial de transferencias asociadas a una cuenta bancaria',
-    },
-  ]);
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([]);
 
   // --- 5. Database & Editable Entities Inputs ---
   const [databaseOption, setDatabaseOption] = useState<string>('POSTGRESQL_PANACHE');
-  const [databaseName, setDatabaseName] = useState<string>('ibk_transfers_db');
-  const [entities, setEntities] = useState<EntityDefinition[]>([
-    {
-      name: 'Transfer',
-      tableName: 'transfers',
-      fields: [
-        { name: 'id', type: 'String', required: true, isId: true },
-        { name: 'sourceAccount', type: 'String', required: true },
-        { name: 'destinationAccount', type: 'String', required: true },
-        { name: 'destinationBankCode', type: 'String', required: true },
-        { name: 'amount', type: 'BigDecimal', required: true },
-        { name: 'currency', type: 'String', required: true },
-        { name: 'status', type: 'String', required: true },
-        { name: 'referenceNumber', type: 'String', required: false },
-        { name: 'createdAt', type: 'LocalDateTime', required: true },
-      ],
-    },
-  ]);
+  const [databaseName, setDatabaseName] = useState<string>('');
+  const [entities, setEntities] = useState<EntityDefinition[]>([]);
 
   // --- 6. Quarkus Extensions & Custom Properties Inputs ---
   const [selectedExtensions, setSelectedExtensions] = useState<string[]>([
     'quarkus-resteasy-reactive-jackson',
     'quarkus-smallrye-openapi',
-    'quarkus-smallrye-health',
-    'quarkus-micrometer-registry-prometheus',
     'quarkus-hibernate-validator',
   ]);
-  const [customExtensionsText, setCustomExtensionsText] = useState<string>(
-    'quarkus-smallrye-fault-tolerance'
-  );
-  const [customPropertiesText, setCustomPropertiesText] = useState<string>(
-    'interbank.transfers.daily-limit=50000.00\ninterbank.audit.async-logging=true\ninterbank.idempotency.ttl-seconds=3600'
-  );
+  const [customExtensionsText, setCustomExtensionsText] = useState<string>('');
+  const [customPropertiesText, setCustomPropertiesText] = useState<string>('');
 
-  // Business Requirement Input
-  const [requirementPrompt, setRequirementPrompt] = useState<string>(
-    'Implementar microservicio bancario de transferencias interbancarias para Interbank con validación de cuentas, registro de auditoría, control de idempotencia y persistencia transaccional ACID.'
-  );
+  // Business Requirement Input (Clean and free-form by default)
+  const [requirementPrompt, setRequirementPrompt] = useState<string>('');
 
   // --- Entry Mode: Direct Requirement / Free Phase Shaping vs Ingest Blueprint JSON ---
   const [entryMode, setEntryMode] = useState<'prompt' | 'blueprint'>('prompt');
@@ -118,128 +78,92 @@ export const StudioPanel: React.FC = () => {
   const [isVerifierOpen, setIsVerifierOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load clients accessible to current user
-  useEffect(() => {
-    const fetchAuthorizedClients = async () => {
-      try {
-        const allClients = await api.governance.listClients(true);
-        if (user?.role === 'ADMIN') {
-          setClients(allClients);
-          if (allClients.length > 0) {
-            const hasIbk = allClients.find((c: any) => (c.code || c.client_id) === 'ibk');
-            if (hasIbk) {
-              setSelectedClient('ibk');
-            } else {
-              setSelectedClient(allClients[0].code || (allClients[0] as any).client_id);
-            }
-          }
-        } else {
-          const assigned = (user?.assigned_clients || []).map((c) => c.toLowerCase());
-          const filtered = allClients.filter((c: any) => {
-            const code = (c.code || c.client_id || '').toLowerCase();
-            return assigned.includes(code) || assigned.includes('*');
-          });
-          setClients(filtered);
-          if (filtered.length > 0) {
-            const hasIbk = filtered.find((c: any) => (c.code || c.client_id) === 'ibk');
-            if (hasIbk) {
-              setSelectedClient('ibk');
-            } else {
-              setSelectedClient(filtered[0].code || (filtered[0] as any).client_id);
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('Failed to load clients', err);
+  const fetchAuthorizedClients = async () => {
+    try {
+      const allClients = await api.governance.listClients(true);
+      if (user?.role === 'ADMIN') {
+        setClients(allClients);
+      } else {
+        const assigned = (user?.assigned_clients || []).map((c) => c.toLowerCase());
+        const filtered = allClients.filter((c: any) => {
+          const code = (c.code || c.client_id || '').toLowerCase();
+          return assigned.includes(code) || assigned.includes('*');
+        });
+        setClients(filtered);
       }
-    };
+    } catch (err: any) {
+      console.error('Failed to load clients', err);
+    }
+  };
 
+  useEffect(() => {
     fetchAuthorizedClients();
   }, [user]);
 
-  // Adjust defaults when client changes
-  useEffect(() => {
-    if (selectedClient === 'ibk') {
-      setArtifactId('ibk-transfers-service');
-      setPackagePrefix('pe.com.interbank');
-      setDatabaseName('ibk_transfers_db');
-      setJwtIssuer('https://auth.interbank.pe');
-      setJavaVersion('21');
-      setRequirementPrompt(
-        'Implementar microservicio bancario de transferencias interbancarias para Interbank con validación de cuentas, registro de auditoría, control de idempotencia y persistencia transaccional ACID.'
-      );
-      setEntities([
-        {
-          name: 'Transfer',
-          tableName: 'transfers',
-          fields: [
-            { name: 'id', type: 'String', required: true, isId: true },
-            { name: 'sourceAccount', type: 'String', required: true },
-            { name: 'destinationAccount', type: 'String', required: true },
-            { name: 'destinationBankCode', type: 'String', required: true },
-            { name: 'amount', type: 'BigDecimal', required: true },
-            { name: 'currency', type: 'String', required: true },
-            { name: 'status', type: 'String', required: true },
-            { name: 'referenceNumber', type: 'String', required: false },
-            { name: 'createdAt', type: 'LocalDateTime', required: true },
-          ],
-        },
-      ]);
-      setCustomEndpoints([
-        {
-          method: 'POST',
-          path: '/api/v1/transfers',
-          summary: 'Ejecutar transferencia inmediata interbancaria con validación de saldo',
-        },
-        {
-          method: 'GET',
-          path: '/api/v1/transfers/{id}',
-          summary: 'Consultar estado y detalle de transferencia por UUID',
-        },
-        {
-          method: 'GET',
-          path: '/api/v1/transfers/accounts/{accountNumber}/history',
-          summary: 'Historial de transferencias asociadas a una cuenta bancaria',
-        },
-      ]);
-    } else if (selectedClient === 'bcp') {
-      setArtifactId('bcp-accounts-service');
-      setPackagePrefix('pe.com.bcp');
-      setDatabaseName('bcp_accounts_db');
-      setJwtIssuer('https://auth.viabcp.com');
-      setJavaVersion('21');
-      setRequirementPrompt(
-        'Implementar microservicio de gestión de cuentas bancarias y balances para BCP con persistencia relacional y trazabilidad de operaciones.'
-      );
-      setEntities([
-        {
-          name: 'Account',
-          tableName: 'accounts',
-          fields: [
-            { name: 'id', type: 'String', required: true, isId: true },
-            { name: 'accountNumber', type: 'String', required: true },
-            { name: 'accountType', type: 'String', required: true },
-            { name: 'balance', type: 'BigDecimal', required: true },
-            { name: 'currency', type: 'String', required: true },
-            { name: 'status', type: 'String', required: true },
-            { name: 'updatedAt', type: 'LocalDateTime', required: true },
-          ],
-        },
-      ]);
-      setCustomEndpoints([
-        {
-          method: 'POST',
-          path: '/api/v1/accounts',
-          summary: 'Aperturar cuenta bancaria',
-        },
-        {
-          method: 'GET',
-          path: '/api/v1/accounts/{accountNumber}/balance',
-          summary: 'Consultar balance disponible',
-        },
-      ]);
-    }
-  }, [selectedClient]);
+  const handleSelectClient = (client: ClientProfile) => {
+    setActiveClient(client);
+    const code = (client.code || client.client_id || '').toLowerCase();
+    setSelectedClient(code);
+    setPackagePrefix(client.package_prefix || `pe.com.${code}`);
+    setJavaVersion(client.java_version || '21');
+    setArtifactId(`${code}-nuevo-servicio`);
+    setDatabaseName(`${code}_db`);
+    setJwtIssuer(`https://auth.${code}.com`);
+
+    // Clean initial state for new microservice
+    setRequirementPrompt('');
+    setEntities([]);
+    setCustomEndpoints([]);
+    setCustomArchNotes('');
+    setCustomPropertiesText('');
+    setCurrentJob(null);
+    setError(null);
+    setActiveStep(1);
+  };
+
+  const handleResetToBlank = (overrideCode?: string) => {
+    const code = overrideCode || selectedClient || 'bcp';
+    setArtifactId(`${code}-nuevo-servicio`);
+    setRequirementPrompt('');
+    setEntities([]);
+    setCustomEndpoints([]);
+    setCustomArchNotes('');
+    setCustomPropertiesText('');
+    setCurrentJob(null);
+    setError(null);
+    setActiveStep(1);
+  };
+
+  const handleLoadBcpSample = () => {
+    setArtifactId('bcp-transfers-service');
+    setPackagePrefix('pe.com.bcp');
+    setDatabaseName('bcp_transfers_db');
+    setJwtIssuer('https://auth.viabcp.com');
+    setJavaVersion('21');
+    setArchStyle('Hexagonal');
+    setCustomArchNotes('Arquitectura hexagonal bancaria para BCP con separación de puertos/adaptadores y trazabilidad transaccional.');
+    setRequirementPrompt('Implementar microservicio de transferencias bancarias y gestión de cuentas para BCP con validación de saldos, registro de auditoría, control de idempotencia y persistencia transaccional ACID.');
+    setEntities([
+      {
+        name: 'Transfer',
+        tableName: 'transfers',
+        fields: [
+          { name: 'id', type: 'String', required: true, isId: true },
+          { name: 'sourceAccount', type: 'String', required: true },
+          { name: 'destinationAccount', type: 'String', required: true },
+          { name: 'destinationBankCode', type: 'String', required: true },
+          { name: 'amount', type: 'BigDecimal', required: true },
+          { name: 'currency', type: 'String', required: true },
+          { name: 'status', type: 'String', required: true },
+          { name: 'createdAt', type: 'LocalDateTime', required: true },
+        ],
+      },
+    ]);
+    setCustomEndpoints([
+      { method: 'POST', path: '/api/v1/transfers', summary: 'Ejecutar transferencia inmediata con validación de saldo' },
+      { method: 'GET', path: '/api/v1/transfers/{id}', summary: 'Consultar estado y detalle de transferencia por UUID' },
+    ]);
+  };
 
   // Load OpenAPI contracts for the selected client
   useEffect(() => {
@@ -740,8 +664,84 @@ export const StudioPanel: React.FC = () => {
     { num: 7, title: 'Resumen & Confirmar' },
   ];
 
+  if (!activeClient) {
+    return (
+      <ClientSelectorCards
+        clients={clients}
+        onSelectClient={handleSelectClient}
+        onRefreshClients={fetchAuthorizedClients}
+        isAdmin={user?.role === 'ADMIN'}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Top Banner: Active Client Corporate Badge & Quick Actions */}
+      <div className="bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border border-tcs-border rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center space-x-4">
+          {selectedClient === 'bcp' ? (
+            <div className="w-14 h-14 rounded-xl bg-[#002A8F] p-2 flex items-center justify-center shadow-lg border border-blue-400/30 overflow-hidden shrink-0">
+              <img src="/bcp-logo.png" alt="BCP Logo" className="w-full h-full object-contain" />
+            </div>
+          ) : (
+            <div className="w-14 h-14 rounded-xl bg-tcs-blue/20 border border-tcs-border flex items-center justify-center text-tcs-cyan font-extrabold text-base shrink-0">
+              {selectedClient.slice(0, 3).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <div className="flex items-center space-x-2.5">
+              <h2 className="text-base sm:text-lg font-extrabold text-white">
+                {activeClient?.name || selectedClient.toUpperCase()}
+              </h2>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase">
+                ● Cuenta Activa
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs font-mono text-tcs-muted">
+              <span className="text-tcs-cyan font-semibold">{packagePrefix}</span>
+              <span>•</span>
+              <span className="text-white/80">Java {javaVersion}</span>
+              <span>•</span>
+              <span className="text-white/80">Quarkus {quarkusVersion}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveClient(null)}
+            className="px-3.5 py-2 bg-tcs-dark hover:bg-tcs-surface border border-tcs-border hover:border-tcs-cyan/60 rounded-xl text-xs font-semibold text-tcs-cyan flex items-center space-x-1.5 transition-all shadow"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span>Cambiar de Cuenta</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleResetToBlank()}
+            className="px-3.5 py-2 bg-tcs-dark hover:bg-tcs-surface border border-tcs-border hover:border-emerald-500/60 rounded-xl text-xs font-semibold text-emerald-300 flex items-center space-x-1.5 transition-all shadow"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>✨ Nuevo Pedido (En blanco)</span>
+          </button>
+
+          {selectedClient === 'bcp' && (
+            <button
+              type="button"
+              onClick={handleLoadBcpSample}
+              className="px-3.5 py-2 bg-gradient-to-r from-[#002A8F] to-tcs-blue hover:from-blue-700 hover:to-cyan-600 border border-blue-400/40 rounded-xl text-xs font-bold text-white flex items-center space-x-1.5 transition-all shadow-lg"
+            >
+              <span>📋 Cargar Ejemplo BCP</span>
+            </button>
+          )}
+        </div>
+      </div>
       {/* Configuration Box */}
       <div className="bg-tcs-card border border-tcs-border rounded-xl p-5 shadow">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5 border-b border-tcs-border/60 pb-4">

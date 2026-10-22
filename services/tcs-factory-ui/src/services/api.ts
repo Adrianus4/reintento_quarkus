@@ -135,7 +135,7 @@ export const api = {
     checkHealth: () => request<{ status: string }>(PORTS.GOVERNANCE, '/health'),
     listClients: (activeOnly: boolean = false) =>
       request<any[]>(PORTS.GOVERNANCE, `/clients?active_only=${activeOnly}`),
-    createClient: (data: { code: string; name: string; description?: string }) =>
+    createClient: (data: { code: string; name: string; description?: string; package_prefix?: string; java_version?: string; quarkus_version?: string }) =>
       request<any>(PORTS.GOVERNANCE, '/clients', {
         method: 'POST',
         body: JSON.stringify(data),

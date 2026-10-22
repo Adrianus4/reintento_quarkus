@@ -23,10 +23,15 @@ export interface AuthTokenResponse {
 
 export interface ClientProfile {
   id?: string;
-  client_id: string;
+  client_id?: string;
+  code?: string;
   name: string;
   description?: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  package_prefix?: string;
+  java_version?: string;
+  quarkus_version?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+  is_active?: boolean;
   created_at?: string;
 }
 
