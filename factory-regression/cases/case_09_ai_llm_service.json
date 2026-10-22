@@ -1,0 +1,105 @@
+{
+  "id": "CASE-09",
+  "name": "AI Document Analyzer with LLM Integration",
+  "category": "AI_LLM_SERVICE",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio para análisis de contratos financieros con IA. Integra un cliente LLM seguro (OpenAI / Azure OpenAI) con LangChain4j para clasificar cláusulas y extraer montos.",
+  "spec": {
+    "service": {
+      "name": "contract-ai-analyzer",
+      "purpose": "AI-powered document contract clause analysis",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/contracts/analyze",
+          "methods": [
+            "POST"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "llm",
+        "details": {
+          "provider": "azure_openai",
+          "model": "gpt-4o"
+        }
+      },
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "ai_contracts"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "AnalysisResult",
+          "table_name": "analysis_results",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "contractId",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "riskScore",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "summary",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "ContractAnalysisOrchestrator",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Format LLM prompt",
+            "Parse structured output",
+            "Persist result"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-09",
+        "given": "Contract text in JSON payload",
+        "when": "POST /api/v1/contracts/analyze is received",
+        "then": "Invokes LLM and returns structured analysis",
+        "examples": [
+          {
+            "input": {
+              "contractText": "Sample agreement..."
+            },
+            "expected_output": {
+              "status": "ANALYZED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "security": "VaultApiKey",
+      "resilience": "CircuitBreaker"
+    }
+  }
+}

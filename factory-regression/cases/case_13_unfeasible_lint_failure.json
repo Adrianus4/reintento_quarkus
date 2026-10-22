@@ -1,0 +1,80 @@
+{
+  "id": "CASE-13",
+  "name": "Unfeasible Prompt with Prohibited Conventions",
+  "category": "UNFEASIBLE_LINT_FAILURE",
+  "expected_verdict": "FALLIDO_TEMPRANO",
+  "prompt": "Microservicio bancario para cuentas corrientes donde el balance monetario use double primitivo en Java y una saga sin compensaciones.",
+  "spec": {
+    "service": {
+      "name": "faulty-account-service",
+      "purpose": "Testing early rejection rules",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/faulty",
+          "methods": [
+            "POST"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "FaultyAccount",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "balance",
+              "type": "double",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "workflows": [
+        {
+          "name": "FaultySaga",
+          "steps": [
+            "step1",
+            "step2"
+          ],
+          "compensations": []
+        }
+      ],
+      "components": [
+        {
+          "name": "FaultyManager",
+          "kind": "orchestrator",
+          "responsibilities": []
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-13",
+        "given": "Faulty request",
+        "when": "POST /api/v1/faulty",
+        "then": "Should fail",
+        "examples": []
+      }
+    ],
+    "non_functional": {}
+  }
+}

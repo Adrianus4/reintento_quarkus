@@ -1,0 +1,127 @@
+{
+  "id": "CASE-05",
+  "name": "Orchestrated Travel Booking Saga with Compensation",
+  "category": "SAGA_COMPENSATION",
+  "expected_verdict": "VERDE",
+  "prompt": "Saga orquestada de reserva de viajes. Reserva vuelo -> reserva hotel -> reserva alquiler de auto. Si falla el auto, ejecuta compensación cancelando hotel y vuelo.",
+  "spec": {
+    "service": {
+      "name": "travel-saga-orchestrator",
+      "purpose": "Orchestrates multi-step travel reservations with compensations",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/trips/book",
+          "methods": [
+            "POST"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "rest_client",
+        "details": {
+          "service_name": "flight-service"
+        }
+      },
+      {
+        "kind": "rest_client",
+        "details": {
+          "service_name": "hotel-service"
+        }
+      },
+      {
+        "kind": "rest_client",
+        "details": {
+          "service_name": "car-rental-service"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "TripBooking",
+          "table_name": "trip_bookings",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "flightBookingId",
+              "type": "String",
+              "required": false
+            },
+            {
+              "name": "hotelBookingId",
+              "type": "String",
+              "required": false
+            },
+            {
+              "name": "carBookingId",
+              "type": "String",
+              "required": false
+            },
+            {
+              "name": "sagaStatus",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "workflows": [
+        {
+          "name": "TripReservationSaga",
+          "steps": [
+            "bookFlight",
+            "bookHotel",
+            "bookCar"
+          ],
+          "compensations": [
+            "cancelHotel",
+            "cancelFlight"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "TripSagaCoordinator",
+          "kind": "saga",
+          "responsibilities": [
+            "Orchestrate steps",
+            "Trigger compensating actions"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-05",
+        "given": "Trip booking request with hotel and flight",
+        "when": "POST /api/v1/trips/book is called",
+        "then": "Executes saga steps and confirms trip",
+        "examples": [
+          {
+            "input": {
+              "destination": "Cusco"
+            },
+            "expected_output": {
+              "sagaStatus": "CONFIRMED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "consistency": "Eventual",
+      "resilience": "CompensatingTransactions"
+    }
+  }
+}

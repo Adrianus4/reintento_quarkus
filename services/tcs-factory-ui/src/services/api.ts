@@ -109,6 +109,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    register: (data: { email: string; password: string; full_name: string; role?: string }) =>
+      request<{ access_token: string; token_type: string; user: any }>(PORTS.AUTH, '/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     login: (data: { email: string; password: string }) =>
       request<{ access_token: string; token_type: string; user: any }>(PORTS.AUTH, '/auth/login', {
         method: 'POST',

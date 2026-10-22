@@ -1,0 +1,85 @@
+{
+  "id": "CASE-14",
+  "name": "Real-time WebSocket Financial Ticker",
+  "category": "WEBSOCKET",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio WebSocket con Quarkus Websocket-Next para difusión bidireccional en tiempo real de cotizaciones bursátiles y libros de órdenes.",
+  "spec": {
+    "service": {
+      "name": "realtime-ticker-service",
+      "purpose": "Bidirectional WebSocket streaming ticker",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "websocket",
+        "details": {
+          "path": "/ws/ticker/{symbol}"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "cache",
+        "details": {
+          "type": "redis"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "TickerQuote",
+          "fields": [
+            {
+              "name": "symbol",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "price",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "timestamp",
+              "type": "LocalDateTime",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "WebSocketSessionManager",
+          "kind": "router",
+          "responsibilities": [
+            "Broadcast live prices to connected sessions"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-14",
+        "given": "Client opens WebSocket connection",
+        "when": "New price arrives",
+        "then": "Broadcasts JSON message to subscribed sockets",
+        "examples": [
+          {
+            "input": {
+              "symbol": "BCP.PE"
+            },
+            "expected_output": {
+              "broadcasted": true
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "performance": "Sub-5ms",
+      "observability": "Micrometer"
+    }
+  }
+}

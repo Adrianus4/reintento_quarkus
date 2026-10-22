@@ -1,0 +1,91 @@
+{
+  "id": "CASE-06",
+  "name": "Credit Scoring & Risk Rules Engine",
+  "category": "CALCULATION_ENGINE",
+  "expected_verdict": "VERDE",
+  "prompt": "Motor de cálculo puro de score crediticio y capacidad de endeudamiento bancario. Valida historial, aplica ratios DTI con BigDecimal y devuelve calificación A/B/C/D sin persistencia pesada.",
+  "spec": {
+    "service": {
+      "name": "credit-scoring-engine",
+      "purpose": "Stateless calculation engine for banking credit risk",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/scoring/evaluate",
+          "methods": [
+            "POST"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "cache",
+        "details": {
+          "type": "redis",
+          "ttl_seconds": 3600
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "CreditEvaluationRequest",
+          "fields": [
+            {
+              "name": "dni",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "monthlyIncome",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "currentDebt",
+              "type": "BigDecimal",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "ScoreCalculator",
+          "kind": "calculator",
+          "responsibilities": [
+            "Calculate DTI ratio",
+            "Assign credit tier"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-06",
+        "given": "Applicant financial parameters",
+        "when": "POST /api/v1/scoring/evaluate is received",
+        "then": "Returns calculated credit score and maximum approved limit",
+        "examples": [
+          {
+            "input": {
+              "monthlyIncome": 5000.0,
+              "currentDebt": 1000.0
+            },
+            "expected_output": {
+              "tier": "A"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "performance": "Sub-50ms",
+      "security": "JWT"
+    }
+  }
+}

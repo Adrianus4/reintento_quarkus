@@ -1,0 +1,108 @@
+{
+  "id": "CASE-10",
+  "name": "Scheduled Daily Maintenance & Notification Mailer",
+  "category": "SCHEDULER_MAIL",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio con tarea programada @Scheduled(cron = '0 0 8 * * ?') que verifica vencimientos de pólizas y emite notificaciones por email vía Quarkus Mailer.",
+  "spec": {
+    "service": {
+      "name": "policy-renewal-notifier",
+      "purpose": "Scheduled policy expiration check and notification",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "scheduler",
+        "details": {
+          "job_name": "checkExpiringPoliciesJob",
+          "cron": "0 0 8 * * ?"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "policies_db"
+        }
+      },
+      {
+        "kind": "email",
+        "details": {
+          "smtp_host": "smtp.mail.pe",
+          "from": "avisos@bcp.com.pe"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "Policy",
+          "table_name": "policies",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "policyNumber",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "clientEmail",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "expirationDate",
+              "type": "LocalDate",
+              "required": true
+            },
+            {
+              "name": "notified",
+              "type": "Boolean",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "PolicyNotifier",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Find expiring policies",
+            "Send emails",
+            "Mark as notified"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-10",
+        "given": "Expiring policies in DB",
+        "when": "Scheduler triggers at 8am",
+        "then": "Emails are dispatched and policy status updated",
+        "examples": [
+          {
+            "input": {
+              "cronTrigger": true
+            },
+            "expected_output": {
+              "processed": true
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "resilience": "Retry",
+      "observability": "Micrometer"
+    }
+  }
+}

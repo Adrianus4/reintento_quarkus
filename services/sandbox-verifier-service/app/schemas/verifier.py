@@ -40,6 +40,19 @@ class VerificationManifest(BaseModel):
     verification_status: str
     total_files: int
     files: List[FileHash]
+    verdict: Optional[str] = "PASSED"
+    veto_applied: Optional[bool] = False
+    phase_results: Optional[Dict[str, str]] = None
+    failures: Optional[List[Dict[str, Any]]] = None
+
+
+class StructuredFailure(BaseModel):
+    phase: str  # validate, test-compile, verify, test-runtime, smoke-test
+    file: Optional[str] = None
+    line: Optional[int] = None
+    col: Optional[int] = None
+    message: str
+    test: Optional[str] = None
 
 
 class RunResponse(BaseModel):
@@ -48,6 +61,10 @@ class RunResponse(BaseModel):
     client_code: str
     job_id: Optional[str] = None
     status: str
+    verdict: str = "PASSED"
+    veto_applied: bool = False
+    phase_results: Dict[str, str] = Field(default_factory=dict)
+    failures: List[StructuredFailure] = Field(default_factory=list)
     compilation_output: Optional[str] = None
     duration_ms: int
     manifest: Optional[Dict[str, Any]] = None
@@ -56,4 +73,3 @@ class RunResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-

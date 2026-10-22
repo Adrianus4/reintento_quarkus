@@ -1,0 +1,94 @@
+{
+  "id": "CASE-15",
+  "name": "GraphQL API with Queries and Mutations",
+  "category": "GRAPHQL_API",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio GraphQL con SmallRye GraphQL en Quarkus 3.x para consulta jerárquica de préstamos bancarios, cuotas y clientes con queries y mutations.",
+  "spec": {
+    "service": {
+      "name": "loan-graphql-service",
+      "purpose": "GraphQL query and mutation provider for bank loans",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "graphql",
+        "details": {
+          "path": "/graphql"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "loans_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "Loan",
+          "table_name": "loans",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "principal",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "interestRate",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "installments",
+              "type": "Integer",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "LoanGraphQLResource",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Execute GraphQL queries",
+            "Execute loan disbursement mutations"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-15",
+        "given": "GraphQL query loanById",
+        "when": "POST /graphql is called with query",
+        "then": "Returns loan details and installments schedule",
+        "examples": [
+          {
+            "input": {
+              "query": "{ loan(id: 1) { principal } }"
+            },
+            "expected_output": {
+              "status": "SUCCESS"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "security": "JWT",
+      "observability": "Micrometer"
+    }
+  }
+}

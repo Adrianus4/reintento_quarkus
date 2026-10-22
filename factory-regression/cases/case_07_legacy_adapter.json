@@ -1,0 +1,90 @@
+{
+  "id": "CASE-07",
+  "name": "Legacy SOAP to Modern REST Reactive Adapter",
+  "category": "LEGACY_ADAPTER",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio adaptador de legado bancario. Expone API REST moderna JSON y por debajo consume un servicio SOAP XML de mainframe con CXF/JAX-WS, transformando respuestas.",
+  "spec": {
+    "service": {
+      "name": "core-banking-soap-adapter",
+      "purpose": "Modern REST wrapper over legacy SOAP core services",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/legacy/accounts/{accNumber}",
+          "methods": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "soap_client",
+        "details": {
+          "wsdl": "wsdl/core_account.wsdl",
+          "endpoint": "http://legacy-mainframe/ws/account"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "LegacyAccountDTO",
+          "fields": [
+            {
+              "name": "accountNumber",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "balance",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "currency",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "SoapPayloadTransformer",
+          "kind": "transformer",
+          "responsibilities": [
+            "Convert REST JSON to SOAP XML",
+            "Map SOAP fault to RFC-7807"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-07",
+        "given": "Account number query",
+        "when": "GET /api/v1/legacy/accounts/{accNumber} is requested",
+        "then": "Queries SOAP service and returns clean JSON",
+        "examples": [
+          {
+            "input": {
+              "accNumber": "191-12345678-0-01"
+            },
+            "expected_output": {
+              "currency": "PEN"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "resilience": "Timeout+Retry",
+      "observability": "OpenTelemetry"
+    }
+  }
+}

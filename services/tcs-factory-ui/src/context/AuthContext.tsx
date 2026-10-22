@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   role: Role | null;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  register: (email: string, password: string, fullName: string, role?: string) => Promise<void>;
   setupInitialAdmin: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
@@ -93,15 +94,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const setupInitialAdmin = async (email: string, password: string, fullName: string) => {
+  const register = async (email: string, password: string, fullName: string, role: string = 'ADMIN') => {
     setIsLoading(true);
     try {
-      await api.auth.setupAdmin({ email, password, full_name: fullName });
-      // After setting up initial admin, log in automatically
-      await login(email, password, true);
+      const res = await api.auth.register({ email, password, full_name: fullName, role });
+      setStoredToken(res.access_token, true);
+      setToken(res.access_token);
+      
+      const roleUpper = res.user.role.toUpperCase() as Role;
+      const assigned = roleUpper === 'ADMIN' ? ['*'] : (res.user.assigned_clients || []);
+
+      setUser({
+        id: res.user.id,
+        email: res.user.email,
+        full_name: res.user.full_name,
+        role: roleUpper,
+        assigned_clients: assigned,
+      });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const setupInitialAdmin = async (email: string, password: string, fullName: string) => {
+    return register(email, password, fullName, 'ADMIN');
   };
 
   const logout = () => {
@@ -119,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         role: user ? user.role : null,
         login,
+        register,
         setupInitialAdmin,
         logout,
         refreshProfile,
@@ -136,4 +153,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

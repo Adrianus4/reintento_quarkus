@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.api.deps import get_verified_user, verify_client_access
@@ -12,19 +12,37 @@ from app.core.database import get_db
 from app.core.manifest import generate_manifest, write_manifest_file
 from app.core.packager import create_zip_archive, materialize_files
 from app.models.run import VerificationRun
-from app.schemas.verifier import RunCreateRequest, RunResponse
+from app.schemas.verifier import RunCreateRequest, RunResponse, StructuredFailure
 
 router = APIRouter()
 
 
 def _format_run_response(run: VerificationRun) -> RunResponse:
     manifest_obj = json.loads(run.manifest_json) if run.manifest_json else None
+    
+    verdict = "PASSED"
+    veto_applied = False
+    failures_list = []
+    phase_results_map = {}
+
+    if manifest_obj:
+        verdict = manifest_obj.get("verdict", "PASSED" if run.status == "SUCCESS" else "FAILED")
+        veto_applied = manifest_obj.get("veto_applied", run.status in ["REJECTED_BY_VETO", "COMPILATION_FAILED", "FAILED"])
+        phase_results_map = manifest_obj.get("phase_results", {})
+        raw_failures = manifest_obj.get("failures", [])
+        for f in raw_failures:
+            failures_list.append(StructuredFailure(**f))
+
     return RunResponse(
         id=run.id,
         user_id=run.user_id,
         client_code=run.client_code,
         job_id=run.job_id,
         status=run.status,
+        verdict=verdict,
+        veto_applied=veto_applied,
+        phase_results=phase_results_map,
+        failures=failures_list,
         compilation_output=run.compilation_output,
         duration_ms=run.duration_ms,
         manifest=manifest_obj,
@@ -40,7 +58,10 @@ def create_and_verify_run(
     user: dict = Depends(get_verified_user),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Materialize files in ephemeral sandbox, compile, generate SHA-256 manifest, and create zip."""
+    """
+    Materialize files in ephemeral sandbox, compile with VETO POWER,
+    generate cryptographic manifest, and block delivery if defects are found.
+    """
     code_clean = payload.client_code.strip().lower()
     verify_client_access(code_clean, user)
 
@@ -70,17 +91,22 @@ def create_and_verify_run(
             detail=str(exc)
         )
 
-    # 3. Execute compilation and testing
-    is_success, output, duration_ms = run_compilation_verification(workspace_dir)
+    # 3. Execute 5-phase compilation, test suites, and smoke test with VETO POWER
+    is_success, output, duration_ms, details = run_compilation_verification(workspace_dir)
     status_str = "SUCCESS" if is_success else "COMPILATION_FAILED"
 
-    # 4. Generate SHA-256 manifest and save to workspace
+    # 4. Generate SHA-256 manifest enriched with verdict and structured failures
     manifest = generate_manifest(
         run_id=run.id,
         client_code=code_clean,
         status=status_str,
         files=payload.files,
     )
+    manifest["verdict"] = details.get("verdict", "PASSED" if is_success else "FAILED")
+    manifest["veto_applied"] = details.get("veto_applied", not is_success)
+    manifest["phase_results"] = details.get("phase_results", {})
+    manifest["failures"] = details.get("failures", [])
+
     write_manifest_file(workspace_dir, manifest)
 
     # 5. Compress entire project including manifest
@@ -104,7 +130,7 @@ def get_run(
     user: dict = Depends(get_verified_user),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Retrieve verification run diagnostics, timing, and compilation output."""
+    """Retrieve verification run diagnostics, timing, structured failures, and compilation output."""
     run = db.query(VerificationRun).filter(VerificationRun.id == run_id).first()
     if not run:
         raise HTTPException(
@@ -142,10 +168,15 @@ def get_run_manifest(
 @router.get("/runs/{run_id}/download")
 def download_run_zip(
     run_id: str,
+    bypass_veto: bool = Query(False, description="Emergency override for debugging only"),
     user: dict = Depends(get_verified_user),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Download verified Quarkus microservice as ZIP archive."""
+    """
+    Download verified Quarkus microservice as ZIP archive.
+    STRICT VETO: If run status is REJECTED_BY_VETO or FAILED, download is BLOCKED.
+    Never deliver broken projects.
+    """
     run = db.query(VerificationRun).filter(VerificationRun.id == run_id).first()
     if not run:
         raise HTTPException(
@@ -154,6 +185,19 @@ def download_run_zip(
         )
 
     verify_client_access(run.client_code, user)
+
+    # STRICT VETO CHECK
+    if run.status in ["REJECTED_BY_VETO", "COMPILATION_FAILED", "FAILED"] and not bypass_veto:
+        manifest_obj = json.loads(run.manifest_json) if run.manifest_json else {}
+        failures_count = len(manifest_obj.get("failures", []))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"ARTEFACTO VETADO POR EL SANDBOX: El microservicio contiene {failures_count} defecto(s) "
+                f"en la verificación de compilación o pruebas de aceptación. Principio de Tolerancia Cero: "
+                f"nunca se entrega un microservicio roto. Estado: {run.status}."
+            )
+        )
 
     if not run.zip_path or not os.path.exists(run.zip_path):
         raise HTTPException(
@@ -167,4 +211,3 @@ def download_run_zip(
         media_type="application/zip",
         filename=filename,
     )
-

@@ -1,0 +1,95 @@
+{
+  "id": "CASE-16",
+  "name": "Reactive AMQP Messaging Consumer",
+  "category": "AMQP_MESSAGING",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio con SmallRye Reactive Messaging conectado a broker AMQP 1.0 (RabbitMQ / ActiveMQ Artemis) para procesamiento de colas de pagos interbancarios.",
+  "spec": {
+    "service": {
+      "name": "interbank-amqp-payment-service",
+      "purpose": "AMQP queue consumer for payment transactions",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "amqp_consumer",
+        "details": {
+          "channel": "incoming-payments",
+          "queue": "payments.in"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "sqlserver_panache",
+          "database_name": "payments_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "PaymentInstruction",
+          "table_name": "payment_instructions",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "transferCode",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "amount",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "destinationCci",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "PaymentProcessor",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Acknowledge AMQP message",
+            "Persist payment"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-16",
+        "given": "Payment message on AMQP queue",
+        "when": "Incoming payment received",
+        "then": "Processes and commits message transactionally",
+        "examples": [
+          {
+            "input": {
+              "amount": 250.0
+            },
+            "expected_output": {
+              "status": "PROCESSED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "consistency": "ACID",
+      "observability": "OpenTelemetry"
+    }
+  }
+}

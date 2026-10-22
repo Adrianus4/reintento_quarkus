@@ -1,0 +1,108 @@
+{
+  "id": "CASE-01",
+  "name": "REST CRUD Video Game Inventory",
+  "category": "REST_CRUD",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio REST para inventario de videojuegos en Quarkus 3.x y Java 21. Entidades VideoGame (id UUID, title String, genre String, price BigDecimal, releaseDate LocalDate, inStock Integer). Endpoints paginados con filtros por género y búsqueda por título.",
+  "spec": {
+    "service": {
+      "name": "videogame-inventory-service",
+      "purpose": "Catalog and inventory management for video games",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/games",
+          "methods": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "games_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "VideoGame",
+          "table_name": "video_games",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "title",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "genre",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "price",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "inStock",
+              "type": "Integer",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "GameInventoryManager",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Catalog management",
+            "Stock validation"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-01",
+        "given": "New video game data",
+        "when": "POST /api/v1/games is received",
+        "then": "Game is stored in DB with 201 Created and persisted entity",
+        "examples": [
+          {
+            "input": {
+              "title": "Elden Ring",
+              "genre": "RPG",
+              "price": 59.99
+            },
+            "expected_output": {
+              "status": "SUCCESS"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "security": "JWT",
+      "resilience": "Standard",
+      "observability": "Micrometer"
+    }
+  }
+}

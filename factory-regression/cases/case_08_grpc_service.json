@@ -1,0 +1,87 @@
+{
+  "id": "CASE-08",
+  "name": "High-Performance gRPC Microservice",
+  "category": "GRPC_SERVICE",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio de comunicación inter-bancaria de ultra baja latencia con Quarkus gRPC y Protobuf para cotización de tipo de cambio en tiempo real.",
+  "spec": {
+    "service": {
+      "name": "fx-rates-grpc-service",
+      "purpose": "High-throughput gRPC FX rate provider",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "grpc",
+        "details": {
+          "proto_file": "proto/fx_rates.proto",
+          "service": "FxRateProvider"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "cache",
+        "details": {
+          "type": "infinispan",
+          "cache_name": "rates"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "ExchangeRate",
+          "fields": [
+            {
+              "name": "currencyPair",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "buyRate",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "sellRate",
+              "type": "BigDecimal",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "RateManager",
+          "kind": "router",
+          "responsibilities": [
+            "Serve current rates with sub-5ms latency"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-08",
+        "given": "gRPC request for USD/PEN",
+        "when": "GetRate rpc is invoked",
+        "then": "Returns protobuf response with current rate",
+        "examples": [
+          {
+            "input": {
+              "pair": "USD/PEN"
+            },
+            "expected_output": {
+              "valid": true
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "performance": "Sub-10ms",
+      "observability": "Micrometer"
+    }
+  }
+}

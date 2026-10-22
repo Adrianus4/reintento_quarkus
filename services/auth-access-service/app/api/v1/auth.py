@@ -8,6 +8,7 @@ from app.models.audit import AuditLoginLog
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     LoginRequest,
+    RegisterRequest,
     SetupAdminRequest,
     TokenResponse,
     TokenVerifyRequest,
@@ -42,33 +43,120 @@ def get_system_status(db: Session = Depends(get_db)) -> Any:
     }
 
 
-@router.post("/setup-admin", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def setup_initial_admin(
-    payload: SetupAdminRequest,
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(
+    payload: RegisterRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ) -> Any:
     """
-    Bootstrap the initial Administrator.
-    Strictly allowed ONLY when the system is in zero-preloaded state (no users in DB).
+    Direct registration: creates or activates user and immediately returns authenticated JWT token.
     """
-    user_count = db.query(User).count()
-    if user_count > 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Platform setup has already been completed. Initial admin already exists."
-        )
+    email_clean = payload.email.lower().strip()
+    user = db.query(User).filter(User.email == email_clean).first()
 
-    admin_user = User(
-        email=payload.email.lower().strip(),
-        hashed_password=get_password_hash(payload.password),
-        full_name=payload.full_name.strip(),
-        role=UserRole.ADMIN,
-        is_active=True,
+    target_role = UserRole.ADMIN if (payload.role or "ADMIN").upper() == "ADMIN" else UserRole.DEVELOPER
+
+    if not user:
+        user = User(
+            email=email_clean,
+            hashed_password=get_password_hash(payload.password),
+            full_name=payload.full_name.strip(),
+            role=target_role,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        # Seamless recovery: update password and activate
+        user.hashed_password = get_password_hash(payload.password)
+        user.full_name = payload.full_name.strip()
+        user.role = target_role
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+
+    ip = get_client_ip(request)
+    audit = AuditLoginLog(
+        user_id=user.id,
+        email_attempted=email_clean,
+        success=True,
+        ip_address=ip
     )
-    db.add(admin_user)
+    db.add(audit)
     db.commit()
-    db.refresh(admin_user)
-    return _build_user_response(admin_user, db)
+
+    role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+    access_token = create_access_token(
+        subject=user.id,
+        email=user.email,
+        role=role_str
+    )
+
+    user_resp = _build_user_response(user, db)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=user_resp
+    )
+
+
+@router.post("/setup-admin", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def setup_initial_admin(
+    payload: SetupAdminRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Bootstrap or adjust administrator with immediate token issuance.
+    """
+    email_clean = payload.email.lower().strip()
+    admin_user = db.query(User).filter(User.email == email_clean).first()
+
+    if not admin_user:
+        admin_user = User(
+            email=email_clean,
+            hashed_password=get_password_hash(payload.password),
+            full_name=payload.full_name.strip(),
+            role=UserRole.ADMIN,
+            is_active=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+    else:
+        # Update credentials and guarantee active admin status
+        admin_user.hashed_password = get_password_hash(payload.password)
+        admin_user.full_name = payload.full_name.strip()
+        admin_user.role = UserRole.ADMIN
+        admin_user.is_active = True
+        db.commit()
+        db.refresh(admin_user)
+
+    ip = get_client_ip(request)
+    audit = AuditLoginLog(
+        user_id=admin_user.id,
+        email_attempted=email_clean,
+        success=True,
+        ip_address=ip
+    )
+    db.add(audit)
+    db.commit()
+
+    role_str = "ADMIN"
+    access_token = create_access_token(
+        subject=admin_user.id,
+        email=admin_user.email,
+        role=role_str
+    )
+
+    user_resp = _build_user_response(admin_user, db)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=user_resp
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -184,7 +272,6 @@ def verify_token(
 ) -> Any:
     """
     Inter-service endpoint: verify token authenticity, active status, and client permissions.
-    Consumed by client-governance-service, ai-orchestrator-service, and sandbox-verifier-service.
     """
     decoded = decode_access_token(payload.token)
     if not decoded:
@@ -230,4 +317,3 @@ def verify_token(
         assigned_clients=assigned,
         reason=None
     )
-

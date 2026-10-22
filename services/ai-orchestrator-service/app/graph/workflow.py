@@ -1,13 +1,16 @@
-import json
 from typing import Any, Dict
-from sqlalchemy.orm import Session
 from app.graph.nodes import (
-    design_blueprint_node,
+    acceptance_tests_node,
+    architecture_plan_node,
     fetch_governance_node,
-    generate_domain_node,
-    generate_scaffolding_node,
-    generate_tests_node,
-    synthesize_and_guarantee_node,
+    implement_loop_node,
+    repair_agent_node,
+    resolve_capabilities_node,
+    sandbox_gate_node,
+    spec_builder_node,
+    spec_lint_and_feasibility_node,
+    static_gates_node,
+    walking_skeleton_node,
 )
 from app.graph.state import JobState
 from app.llm.base import BaseLLMClient
@@ -25,7 +28,12 @@ class GenerationWorkflow:
         llm: BaseLLMClient = None,
         token: str = None
     ) -> JobState:
-        """Run sequential LangGraph execution pipeline with deterministic quality guarantee."""
+        """
+        Run TCS Quarkus Factory 2.0 multi-agent generation pipeline:
+        fetch_governance -> spec_builder -> spec_lint -> resolve_capabilities ->
+        architecture_plan -> acceptance_tests -> walking_skeleton -> implement_loop ->
+        static_gates -> sandbox (with Veto Power & Repair Loop)
+        """
         state: JobState = {
             "job_id": job_id,
             "user_id": user_id,
@@ -34,8 +42,15 @@ class GenerationWorkflow:
             "requirements": requirements,
             "config": config or {},
             "governance_context": {},
+            "service_spec": {},
+            "spec_hash": "",
             "blueprint": {},
-            "files": {},
+            "capabilities": [],
+            "manifest": [],
+            "symbol_table": {},
+            "files": {},  # Clean dictionary, overwritten on each run
+            "static_gate_failures": [],
+            "sandbox_result": {},
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "duration_ms": 0,
@@ -48,25 +63,55 @@ class GenerationWorkflow:
             # 1. Fetch Governance Context from :8002
             state = fetch_governance_node(state, token)
 
-            # 2. Design Blueprint
-            state = design_blueprint_node(state, llm)
+            # 2. Spec Builder (Universal ServiceSpec generation)
+            state = spec_builder_node(state, llm)
 
-            # 3. Generate Scaffolding (pom.xml, CI/CD, properties)
-            state = generate_scaffolding_node(state, llm)
+            # 3. Spec Lint & Feasibility Check (Early Failure if unfeasible)
+            state = spec_lint_and_feasibility_node(state)
+            if state.get("status") == "FAILED":
+                return state
 
-            # 4. Generate Domain & REST Resources
-            state = generate_domain_node(state, llm)
+            # 4. Resolve Capabilities & Scaffolding (Deterministic POM & properties from Catalog)
+            state = resolve_capabilities_node(state)
 
-            # 5. Generate Automated Tests (JUnit 5 + @QuarkusTest)
-            state = generate_tests_node(state, llm)
+            # 5. Architectural Plan (Manifest & Symbol Table)
+            state = architecture_plan_node(state)
 
-            # 6. Deterministic Architectural Synthesis & Quality Guarantee Engine
-            state = synthesize_and_guarantee_node(state)
+            # 6. Acceptance Tests (Immutable Test Oracle)
+            state = acceptance_tests_node(state, llm)
 
-            state["status"] = "AWAITING_REVIEW"
+            # 7. Walking Skeleton (Compilable interfaces, DTOs & Stubs)
+            state = walking_skeleton_node(state)
+
+            # 8. Implement Loop
+            state = implement_loop_node(state, llm)
+
+            # 9. Static Gates (AST syntax, package prefix, symbol resolution, no secrets)
+            state = static_gates_node(state)
+            if state.get("static_gate_failures"):
+                state = repair_agent_node(state, llm)
+
+            # 10. Ephemeral Sandbox with Strict Veto Power & Auto-Repair Loop
+            max_repair_attempts = 4
+            for attempt in range(max_repair_attempts):
+                state = sandbox_gate_node(state, token)
+                if state.get("status") == "VERIFIED_PASSED":
+                    break
+                # If vetoed by sandbox, invoke repair agent
+                state = repair_agent_node(state, llm)
+
+            # Final status update
+            if state.get("status") == "VERIFIED_PASSED":
+                state["status"] = "AWAITING_REVIEW"
+            elif state.get("status") == "VETOED_BY_SANDBOX":
+                state["status"] = "FAILED"
+            else:
+                state["status"] = "AWAITING_REVIEW"
+
         except Exception as exc:
-            # Report the actual error from the configured LLM without silent mock fallbacks
+            import traceback
+            traceback.print_exc()
             state["status"] = "FAILED"
-            state["error"] = f"Error invocando el modelo {getattr(llm, 'model_name', 'LLM')}: {str(exc)}"
+            state["error"] = f"Pipeline execution error: {str(exc)}"
 
         return state

@@ -1,0 +1,98 @@
+{
+  "id": "CASE-04",
+  "name": "BFF Aggregator with Circuit Breaker",
+  "category": "BFF_AGGREGATOR",
+  "expected_verdict": "VERDE",
+  "prompt": "BFF de cliente 360 para portal web. Agrega información de cuentas desde account-service y tarjetas desde card-service con RestClient reactivo, timeout de 1500ms y CircuitBreaker con fallback.",
+  "spec": {
+    "service": {
+      "name": "customer-360-bff-service",
+      "purpose": "Backend-For-Frontend aggregating customer data",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/customer-360/{customerId}",
+          "methods": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "rest_client",
+        "details": {
+          "service_name": "account-service",
+          "url": "http://account-service:8080"
+        }
+      },
+      {
+        "kind": "rest_client",
+        "details": {
+          "service_name": "card-service",
+          "url": "http://card-service:8080"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "CustomerSummary",
+          "fields": [
+            {
+              "name": "customerId",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "totalBalance",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "cardsCount",
+              "type": "Integer",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "CustomerAggregator",
+          "kind": "aggregator",
+          "responsibilities": [
+            "Parallel fetch",
+            "Combine responses",
+            "Fault tolerance fallback"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-04",
+        "given": "Valid customer ID",
+        "when": "GET /api/v1/customer-360/{id} is called",
+        "then": "Returns combined account and card overview",
+        "examples": [
+          {
+            "input": {
+              "customerId": "CLI-999"
+            },
+            "expected_output": {
+              "status": "SUCCESS"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "resilience": "CircuitBreaker+Timeout",
+      "security": "JWT"
+    }
+  }
+}

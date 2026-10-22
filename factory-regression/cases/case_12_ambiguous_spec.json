@@ -1,0 +1,21 @@
+{
+  "id": "CASE-12",
+  "name": "Highly Ambiguous Prompt Request",
+  "category": "AMBIGUOUS_SPEC",
+  "expected_verdict": "AWAITING_REVIEW",
+  "prompt": "Hacer un servicio que procese unas cosas de datos y las guarde en algún lado.",
+  "spec": {
+    "service": {
+      "name": "undefined-data-processor",
+      "purpose": "Procesamiento genérico"
+    },
+    "inbound": [],
+    "outbound": [],
+    "domain": {
+      "data_models": [],
+      "components": []
+    },
+    "behaviors": [],
+    "non_functional": {}
+  }
+}

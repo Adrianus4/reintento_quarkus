@@ -5,8 +5,15 @@ from app.schemas.user import UserResponse
 
 class SetupAdminRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8, description="Initial administrator password (min 8 chars)")
+    password: str = Field(..., min_length=4, description="Initial administrator password")
     full_name: str = Field(..., min_length=2, max_length=255)
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=4, description="User password")
+    full_name: str = Field(..., min_length=2, max_length=255)
+    role: Optional[str] = "ADMIN"
 
 
 class LoginRequest(BaseModel):
@@ -31,4 +38,3 @@ class TokenVerifyResponse(BaseModel):
     role: Optional[str] = None
     assigned_clients: List[str] = []
     reason: Optional[str] = None
-

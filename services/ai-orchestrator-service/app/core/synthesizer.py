@@ -50,25 +50,35 @@ class CodeSynthesizer:
         artifact_id = blueprint.get("artifact_id") or f"{client_code}-microservice"
         pkg_path = pkg_prefix.replace(".", "/")
 
-        # Detect primary entity and entities list with priority for requirements/artifact intent
-        combined_text = f"{artifact_id} {req}".lower()
-        if any(k in combined_text for k in ["libro", "book", "catalogo", "catalog"]):
-            primary_entity = "Book"
-            primary_table = "books"
-        elif any(k in combined_text for k in ["tarjeta", "card", "credito"]):
-            primary_entity = "CreditCard"
-            primary_table = "credit_cards"
+        # Prioritize explicit entities from ServiceSpec, config, or blueprint
+        service_spec = state.get("service_spec", {})
+        data_models = service_spec.get("domain", {}).get("data_models", [])
+        cfg_entities = state.get("config", {}).get("entities", [])
+        blueprint_entities = blueprint.get("entities", [])
+
+        if data_models and data_models[0].get("name"):
+            primary_entity = data_models[0].get("name")
+            primary_table = data_models[0].get("table_name") or f"{primary_entity.lower()}s"
+        elif cfg_entities and cfg_entities[0].get("name"):
+            primary_entity = cfg_entities[0].get("name")
+            primary_table = cfg_entities[0].get("tableName") or f"{primary_entity.lower()}s"
+        elif blueprint_entities and blueprint_entities[0].get("name"):
+            primary_entity = blueprint_entities[0].get("name")
+            primary_table = blueprint_entities[0].get("tableName") or f"{primary_entity.lower()}s"
         else:
-            entities = blueprint.get("entities", [])
-            if entities and entities[0].get("name") and entities[0].get("name") not in ["Item", "Account"]:
-                primary_entity = entities[0].get("name")
-                primary_table = entities[0].get("tableName", f"{primary_entity.lower()}s")
-            elif any(k in combined_text for k in ["cliente", "customer"]):
-                primary_entity = "Customer"
-                primary_table = "customers"
+            combined_text = f"{artifact_id} {req}".lower()
+            if any(k in combined_text for k in ["libro", "book", "catalogo", "catalog"]):
+                primary_entity = "Book"
+                primary_table = "books"
+            elif any(k in combined_text for k in ["tarjeta", "card", "credito"]):
+                primary_entity = "CreditCard"
+                primary_table = "credit_cards"
+            elif any(k in combined_text for k in ["cliente", "customer", "campana"]):
+                primary_entity = "CampaignCustomer"
+                primary_table = "campaign_customers"
             else:
-                primary_entity = entities[0].get("name", "Account") if entities else "Account"
-                primary_table = entities[0].get("tableName", f"{primary_entity.lower()}s") if entities else "accounts"
+                primary_entity = "Item"
+                primary_table = "items"
 
         # 1. Guarantee POM.xml with all required dependencies
         cls._guarantee_pom_xml(files, artifact_id, client_code)
@@ -323,8 +333,8 @@ VALUES ('c0000000-0000-0000-0000-000000000002', '5412********2222', 'Maria Gomez
 """
         else:
             files["src/main/resources/import.sql"] = f"""-- Seed initial data
-INSERT INTO {primary_table} (id, status, created_at)
-VALUES ('d0000000-0000-0000-0000-000000000001', 'ACTIVE', CURRENT_TIMESTAMP);
+INSERT INTO {primary_table} (id, name, code, amount, status, created_at)
+VALUES ('d0000000-0000-0000-0000-000000000001', 'Initial Enterprise Seed', 'SEED-001', 99.99, 'ACTIVE', CURRENT_TIMESTAMP);
 """
 
     @classmethod
@@ -333,6 +343,29 @@ VALUES ('d0000000-0000-0000-0000-000000000001', 'ACTIVE', CURRENT_TIMESTAMP);
         # 1. Category and Secondary entity support for Book Catalog
         if primary_entity.lower() in ["book", "libro"]:
             cls._ensure_book_catalog_domain(files, pkg_prefix, pkg_path)
+
+        # Universal Domain Generator for any entity
+        if primary_entity.lower() not in ["book", "libro"]:
+            cls._ensure_universal_hexagonal_domain(files, pkg_prefix, pkg_path, primary_entity, primary_table, blueprint)
+
+        # Invariant: Guarantee Core Domain Exceptions for ALL microservices
+        files[f"src/main/java/{pkg_path}/domain/exception/ResourceNotFoundException.java"] = f"""package {pkg_prefix}.domain.exception;
+
+public class ResourceNotFoundException extends RuntimeException {{
+    public ResourceNotFoundException(String message) {{
+        super(message);
+    }}
+}}
+"""
+        files[f"src/main/java/{pkg_path}/domain/exception/BusinessConflictException.java"] = f"""package {pkg_prefix}.domain.exception;
+
+public class BusinessConflictException extends RuntimeException {{
+    public BusinessConflictException(String message) {{
+        super(message);
+    }}
+}}
+"""
+
 
         # 2. Fix conflicting execute(UUID) signatures across all UseCase files
         for fpath, code in list(files.items()):
@@ -1038,6 +1071,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {{
     @classmethod
     def _guarantee_rest_resource(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str, blueprint: Dict[str, Any]):
         """Ensure BookResource or Primary Resource exists with DTOs, @Path, @RolesAllowed, @Valid."""
+        primary_table = f"{primary_entity.lower()}s"
         # PageResponse DTO
         files[f"src/main/java/{pkg_path}/adapter/in/web/dto/PageResponse.java"] = f"""package {pkg_prefix}.adapter.in.web.dto;
 
@@ -1304,10 +1338,13 @@ public class BookResource {{
     }}
 }}
 """
+        else:
+            cls._ensure_universal_rest_resource(files, pkg_prefix, pkg_path, primary_entity, primary_table)
 
     @classmethod
     def _guarantee_tests(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str):
         """Ensure unit & integration tests compile and pass with Mockito and TestSecurity."""
+        primary_table = f"{primary_entity.lower()}s"
         if primary_entity.lower() in ["book", "libro"]:
             # Service Test with Mockito
             files[f"src/test/java/{pkg_path}/application/service/BookServiceTest.java"] = f"""package {pkg_prefix}.application.service;
@@ -1507,6 +1544,9 @@ public class BookResourceTest {{
     }}
 }}
 """
+
+        else:
+            cls._ensure_universal_tests(files, pkg_prefix, pkg_path, primary_entity, primary_table)
 
         # Health Check Test
         files[f"src/test/java/{pkg_path}/HealthCheckTest.java"] = f"""package {pkg_prefix};
@@ -1853,3 +1893,652 @@ volumes:
                     if last_idx != -1:
                         repaired = repaired[:last_idx] + repaired[last_idx + 1:]
                 files[fpath] = repaired
+
+    @classmethod
+    def _ensure_universal_hexagonal_domain(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str, primary_table: str, blueprint: Dict[str, Any]):
+        """Dynamically generate Hexagonal domain, ports, use cases, service, and Panache persistence for ANY entity."""
+        # 1. Domain Model
+        files[f"src/main/java/{pkg_path}/domain/model/{primary_entity}.java"] = f"""package {pkg_prefix}.domain.model;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class {primary_entity} {{
+    private UUID id;
+    private String name;
+    private String code;
+    private BigDecimal amount;
+    private String status;
+    private LocalDateTime createdAt;
+
+    public {primary_entity}() {{}}
+
+    public {primary_entity}(UUID id, String name, String code, BigDecimal amount, String status) {{
+        this.id = id;
+        this.name = name;
+        this.code = code;
+        this.amount = amount;
+        this.status = status;
+        this.createdAt = LocalDateTime.now();
+    }}
+
+    public UUID getId() {{ return id; }}
+    public void setId(UUID id) {{ this.id = id; }}
+    public String getName() {{ return name; }}
+    public void setName(String name) {{ this.name = name; }}
+    public String getCode() {{ return code; }}
+    public void setCode(String code) {{ this.code = code; }}
+    public BigDecimal getAmount() {{ return amount; }}
+    public void setAmount(BigDecimal amount) {{ this.amount = amount; }}
+    public String getStatus() {{ return status; }}
+    public void setStatus(String status) {{ this.status = status; }}
+    public LocalDateTime getCreatedAt() {{ return createdAt; }}
+    public void setCreatedAt(LocalDateTime createdAt) {{ this.createdAt = createdAt; }}
+}}
+"""
+
+        # 2. UseCases
+        files[f"src/main/java/{pkg_path}/domain/port/in/Create{primary_entity}UseCase.java"] = f"""package {pkg_prefix}.domain.port.in;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+
+public interface Create{primary_entity}UseCase {{
+    {primary_entity} create({primary_entity} entity);
+}}
+"""
+
+        files[f"src/main/java/{pkg_path}/domain/port/in/Get{primary_entity}UseCase.java"] = f"""package {pkg_prefix}.domain.port.in;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import java.util.UUID;
+
+public interface Get{primary_entity}UseCase {{
+    {primary_entity} getById(UUID id);
+}}
+"""
+
+        files[f"src/main/java/{pkg_path}/domain/port/in/Search{primary_entity}UseCase.java"] = f"""package {pkg_prefix}.domain.port.in;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.adapter.in.web.dto.PageResponse;
+
+public interface Search{primary_entity}UseCase {{
+    PageResponse<{primary_entity}> search(String query, String status, int page, int size);
+}}
+"""
+
+        files[f"src/main/java/{pkg_path}/domain/port/in/Update{primary_entity}UseCase.java"] = f"""package {pkg_prefix}.domain.port.in;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import java.util.UUID;
+
+public interface Update{primary_entity}UseCase {{
+    {primary_entity} update(UUID id, {primary_entity} entity);
+}}
+"""
+
+        files[f"src/main/java/{pkg_path}/domain/port/in/Delete{primary_entity}UseCase.java"] = f"""package {pkg_prefix}.domain.port.in;
+
+import java.util.UUID;
+
+public interface Delete{primary_entity}UseCase {{
+    void delete(UUID id);
+}}
+"""
+
+        # 3. Outbound Port
+        files[f"src/main/java/{pkg_path}/domain/port/out/{primary_entity}RepositoryPort.java"] = f"""package {pkg_prefix}.domain.port.out;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.adapter.in.web.dto.PageResponse;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface {primary_entity}RepositoryPort {{
+    {primary_entity} save({primary_entity} entity);
+    Optional<{primary_entity}> findById(UUID id);
+    PageResponse<{primary_entity}> search(String query, String status, int page, int size);
+    long count(String query, String status);
+    void deleteById(UUID id);
+    boolean existsById(UUID id);
+}}
+"""
+
+        # 4. Service
+        files[f"src/main/java/{pkg_path}/application/service/{primary_entity}Service.java"] = f"""package {pkg_prefix}.application.service;
+
+import {pkg_prefix}.domain.exception.ResourceNotFoundException;
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.domain.port.in.*;
+import {pkg_prefix}.domain.port.out.{primary_entity}RepositoryPort;
+import {pkg_prefix}.adapter.in.web.dto.PageResponse;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.util.UUID;
+
+@ApplicationScoped
+public class {primary_entity}Service implements
+        Create{primary_entity}UseCase,
+        Get{primary_entity}UseCase,
+        Search{primary_entity}UseCase,
+        Update{primary_entity}UseCase,
+        Delete{primary_entity}UseCase {{
+
+    private final {primary_entity}RepositoryPort repositoryPort;
+
+    @Inject
+    public {primary_entity}Service({primary_entity}RepositoryPort repositoryPort) {{
+        this.repositoryPort = repositoryPort;
+    }}
+
+    @Override
+    @Transactional
+    public {primary_entity} create({primary_entity} entity) {{
+        if (entity.getId() == null) {{
+            entity.setId(UUID.randomUUID());
+        }}
+        if (entity.getStatus() == null) {{
+            entity.setStatus("ACTIVE");
+        }}
+        return repositoryPort.save(entity);
+    }}
+
+    @Override
+    public {primary_entity} getById(UUID id) {{
+        return repositoryPort.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("{primary_entity} not found with id: " + id));
+    }}
+
+    @Override
+    public PageResponse<{primary_entity}> search(String query, String status, int page, int size) {{
+        return repositoryPort.search(query, status, page, size);
+    }}
+
+    @Override
+    @Transactional
+    public {primary_entity} update(UUID id, {primary_entity} entity) {{
+        {primary_entity} existing = getById(id);
+        existing.setName(entity.getName());
+        existing.setCode(entity.getCode());
+        existing.setAmount(entity.getAmount());
+        if (entity.getStatus() != null) {{
+            existing.setStatus(entity.getStatus());
+        }}
+        return repositoryPort.save(existing);
+    }}
+
+    @Override
+    @Transactional
+    public void delete(UUID id) {{
+        {primary_entity} existing = getById(id);
+        existing.setStatus("INACTIVE");
+        repositoryPort.save(existing);
+    }}
+}}
+"""
+
+        # 5. Panache Entity
+        files[f"src/main/java/{pkg_path}/adapter/out/persistence/{primary_entity}Entity.java"] = f"""package {pkg_prefix}.adapter.out.persistence;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "{primary_table}")
+public class {primary_entity}Entity extends PanacheEntityBase {{
+
+    @Id
+    @Column(name = "id", nullable = false)
+    public UUID id;
+
+    @Column(name = "name")
+    public String name;
+
+    @Column(name = "code")
+    public String code;
+
+    @Column(name = "amount")
+    public BigDecimal amount;
+
+    @Column(name = "status", nullable = false)
+    public String status;
+
+    @Column(name = "created_at")
+    public LocalDateTime createdAt;
+
+    public {primary_entity}Entity() {{}}
+
+    public {primary_entity} toDomain() {{
+        {primary_entity} d = new {primary_entity}();
+        d.setId(this.id);
+        d.setName(this.name);
+        d.setCode(this.code);
+        d.setAmount(this.amount);
+        d.setStatus(this.status);
+        d.setCreatedAt(this.createdAt);
+        return d;
+    }}
+
+    public static {primary_entity}Entity fromDomain({primary_entity} d) {{
+        {primary_entity}Entity e = new {primary_entity}Entity();
+        e.id = d.getId() != null ? d.getId() : UUID.randomUUID();
+        e.name = d.getName();
+        e.code = d.getCode();
+        e.amount = d.getAmount();
+        e.status = d.getStatus() != null ? d.getStatus() : "ACTIVE";
+        e.createdAt = d.getCreatedAt() != null ? d.getCreatedAt() : LocalDateTime.now();
+        return e;
+    }}
+}}
+"""
+
+        # 6. Panache Repository
+        files[f"src/main/java/{pkg_path}/adapter/out/persistence/{primary_entity}PanacheRepository.java"] = f"""package {pkg_prefix}.adapter.out.persistence;
+
+import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
+import jakarta.enterprise.context.ApplicationScoped;
+import java.util.UUID;
+
+@ApplicationScoped
+public class {primary_entity}PanacheRepository implements PanacheRepositoryBase<{primary_entity}Entity, UUID> {{
+}}
+"""
+
+        # 7. Repository Adapter with safe merge update
+        files[f"src/main/java/{pkg_path}/adapter/out/persistence/{primary_entity}RepositoryAdapter.java"] = f"""package {pkg_prefix}.adapter.out.persistence;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.domain.port.out.{primary_entity}RepositoryPort;
+import {pkg_prefix}.adapter.in.web.dto.PageResponse;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Parameters;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class {primary_entity}RepositoryAdapter implements {primary_entity}RepositoryPort {{
+
+    @Inject
+    {primary_entity}PanacheRepository panacheRepository;
+
+    @Override
+    public {primary_entity} save({primary_entity} entity) {{
+        {primary_entity}Entity panacheEntity = {primary_entity}Entity.fromDomain(entity);
+        if (entity.getId() != null && panacheRepository.findById(entity.getId()) != null) {{
+            {primary_entity}Entity managed = panacheRepository.getEntityManager().merge(panacheEntity);
+            return managed.toDomain();
+        }} else {{
+            panacheRepository.persist(panacheEntity);
+            return panacheEntity.toDomain();
+        }}
+    }}
+
+    @Override
+    public Optional<{primary_entity}> findById(UUID id) {{
+        return panacheRepository.findByIdOptional(id).map({primary_entity}Entity::toDomain);
+    }}
+
+    @Override
+    public PageResponse<{primary_entity}> search(String query, String status, int page, int size) {{
+        StringBuilder queryBuilder = new StringBuilder("1=1");
+        Parameters params = new Parameters();
+
+        if (status != null && !status.trim().isEmpty()) {{
+            queryBuilder.append(" and status = :status");
+            params.and("status", status.trim().toUpperCase());
+        }}
+        if (query != null && !query.trim().isEmpty()) {{
+            queryBuilder.append(" and (lower(name) like :q or lower(code) like :q)");
+            params.and("q", "%" + query.trim().toLowerCase() + "%");
+        }}
+
+        var panacheQuery = panacheRepository.find(queryBuilder.toString(), params);
+        long totalElements = panacheQuery.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        List<{primary_entity}> content = panacheQuery.page(Page.of(page, size)).list()
+                .stream()
+                .map({primary_entity}Entity::toDomain)
+                .collect(Collectors.toList());
+
+        return new PageResponse<>(content, page, size, totalElements, totalPages);
+    }}
+
+    @Override
+    public long count(String query, String status) {{
+        return panacheRepository.count();
+    }}
+
+    @Override
+    public void deleteById(UUID id) {{
+        panacheRepository.deleteById(id);
+    }}
+
+    @Override
+    public boolean existsById(UUID id) {{
+        return panacheRepository.findByIdOptional(id).isPresent();
+    }}
+}}
+"""
+
+    @classmethod
+    def _ensure_universal_rest_resource(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str, primary_table: str):
+        """Generate REST Controller and DTOs for ANY entity."""
+        # Request DTO
+        files[f"src/main/java/{pkg_path}/adapter/in/web/dto/{primary_entity}Request.java"] = f"""package {pkg_prefix}.adapter.in.web.dto;
+
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+
+public class {primary_entity}Request {{
+
+    @NotBlank(message = "Name is required")
+    private String name;
+
+    @NotBlank(message = "Code is required")
+    private String code;
+
+    @NotNull(message = "Amount is required")
+    @DecimalMin(value = "0.00", message = "Amount cannot be negative")
+    private BigDecimal amount;
+
+    public {primary_entity}Request() {{}}
+
+    public String getName() {{ return name; }}
+    public void setName(String name) {{ this.name = name; }}
+    public String getCode() {{ return code; }}
+    public void setCode(String code) {{ this.code = code; }}
+    public BigDecimal getAmount() {{ return amount; }}
+    public void setAmount(BigDecimal amount) {{ this.amount = amount; }}
+}}
+"""
+
+        # Response DTO
+        files[f"src/main/java/{pkg_path}/adapter/in/web/dto/{primary_entity}Response.java"] = f"""package {pkg_prefix}.adapter.in.web.dto;
+
+import {pkg_prefix}.domain.model.{primary_entity};
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class {primary_entity}Response {{
+    private UUID id;
+    private String name;
+    private String code;
+    private BigDecimal amount;
+    private String status;
+    private LocalDateTime createdAt;
+
+    public {primary_entity}Response() {{}}
+
+    public static {primary_entity}Response fromDomain({primary_entity} d) {{
+        {primary_entity}Response r = new {primary_entity}Response();
+        r.id = d.getId();
+        r.name = d.getName();
+        r.code = d.getCode();
+        r.amount = d.getAmount();
+        r.status = d.getStatus();
+        r.createdAt = d.getCreatedAt();
+        return r;
+    }}
+
+    public UUID getId() {{ return id; }}
+    public String getName() {{ return name; }}
+    public String getCode() {{ return code; }}
+    public BigDecimal getAmount() {{ return amount; }}
+    public String getStatus() {{ return status; }}
+    public LocalDateTime getCreatedAt() {{ return createdAt; }}
+}}
+"""
+
+        # Resource Controller
+        files[f"src/main/java/{pkg_path}/adapter/in/web/{primary_entity}Resource.java"] = f"""package {pkg_prefix}.adapter.in.web;
+
+import {pkg_prefix}.adapter.in.web.dto.*;
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.domain.port.in.*;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.*;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import java.net.URI;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Path("/api/v1/{primary_table}")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+@Tag(name = "{primary_entity} Resource", description = "Operations for {primary_entity}")
+public class {primary_entity}Resource {{
+
+    @Inject
+    Create{primary_entity}UseCase createUseCase;
+
+    @Inject
+    Get{primary_entity}UseCase getUseCase;
+
+    @Inject
+    Search{primary_entity}UseCase searchUseCase;
+
+    @Inject
+    Update{primary_entity}UseCase updateUseCase;
+
+    @Inject
+    Delete{primary_entity}UseCase deleteUseCase;
+
+    @POST
+    @RolesAllowed({{"ADMIN", "OPERATOR"}})
+    @Operation(summary = "Create a new {primary_entity}")
+    public Response create(@Valid {primary_entity}Request request) {{
+        {primary_entity} domain = new {primary_entity}();
+        domain.setName(request.getName());
+        domain.setCode(request.getCode());
+        domain.setAmount(request.getAmount());
+
+        {primary_entity} created = createUseCase.create(domain);
+        return Response.created(URI.create("/api/v1/{primary_table}/" + created.getId()))
+                .entity({primary_entity}Response.fromDomain(created))
+                .build();
+    }}
+
+    @GET
+    @RolesAllowed({{"ADMIN", "OPERATOR", "AUDITOR"}})
+    @Operation(summary = "Search and paginate {primary_entity}")
+    public Response search(
+            @QueryParam("q") @DefaultValue("") String query,
+            @QueryParam("status") @DefaultValue("") String status,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {{
+        var pageDomain = searchUseCase.search(query, status, page, size);
+        var content = pageDomain.getContent().stream()
+                .map({primary_entity}Response::fromDomain)
+                .collect(Collectors.toList());
+        return Response.ok(new PageResponse<>(content, pageDomain.getPage(), pageDomain.getSize(), pageDomain.getTotalElements(), pageDomain.getTotalPages())).build();
+    }}
+
+    @GET
+    @Path("/{{id}}")
+    @RolesAllowed({{"ADMIN", "OPERATOR", "AUDITOR"}})
+    @Operation(summary = "Retrieve {primary_entity} by ID")
+    public Response getById(@PathParam("id") UUID id) {{
+        {primary_entity} entity = getUseCase.getById(id);
+        return Response.ok({primary_entity}Response.fromDomain(entity)).build();
+    }}
+
+    @PUT
+    @Path("/{{id}}")
+    @RolesAllowed({{"ADMIN", "OPERATOR"}})
+    @Operation(summary = "Update {primary_entity} by ID")
+    public Response update(@PathParam("id") UUID id, @Valid {primary_entity}Request request) {{
+        {primary_entity} domain = new {primary_entity}();
+        domain.setName(request.getName());
+        domain.setCode(request.getCode());
+        domain.setAmount(request.getAmount());
+        {primary_entity} updated = updateUseCase.update(id, domain);
+        return Response.ok({primary_entity}Response.fromDomain(updated)).build();
+    }}
+
+    @DELETE
+    @Path("/{{id}}")
+    @RolesAllowed({{"ADMIN"}})
+    @Operation(summary = "Delete {primary_entity} by ID")
+    public Response delete(@PathParam("id") UUID id) {{
+        deleteUseCase.delete(id);
+        return Response.noContent().build();
+    }}
+}}
+"""
+
+    @classmethod
+    def _ensure_universal_tests(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str, primary_table: str):
+        """Generate unit tests with Mockito and integration tests with @QuarkusTest for ANY entity."""
+        # Service Test
+        files[f"src/test/java/{pkg_path}/application/service/{primary_entity}ServiceTest.java"] = f"""package {pkg_prefix}.application.service;
+
+import {pkg_prefix}.domain.exception.ResourceNotFoundException;
+import {pkg_prefix}.domain.model.{primary_entity};
+import {pkg_prefix}.domain.port.out.{primary_entity}RepositoryPort;
+import io.quarkus.test.InjectMock;
+import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@QuarkusTest
+public class {primary_entity}ServiceTest {{
+
+    @Inject
+    {primary_entity}Service service;
+
+    @InjectMock
+    {primary_entity}RepositoryPort repositoryPort;
+
+    private UUID testId;
+    private {primary_entity} sampleEntity;
+
+    @BeforeEach
+    void setUp() {{
+        testId = UUID.randomUUID();
+        sampleEntity = new {primary_entity}(testId, "Sample Item", "SMP-001", new BigDecimal("100.00"), "ACTIVE");
+    }}
+
+    @Test
+    @DisplayName("Should create {primary_entity} successfully")
+    void testCreate() {{
+        Mockito.when(repositoryPort.save(Mockito.any())).thenReturn(sampleEntity);
+        {primary_entity} created = service.create(sampleEntity);
+        assertNotNull(created);
+        assertEquals("SMP-001", created.getCode());
+    }}
+
+    @Test
+    @DisplayName("Should find {primary_entity} by ID")
+    void testFindById() {{
+        Mockito.when(repositoryPort.findById(testId)).thenReturn(Optional.of(sampleEntity));
+        {primary_entity} found = service.getById(testId);
+        assertNotNull(found);
+        assertEquals(testId, found.getId());
+    }}
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when {primary_entity} not found")
+    void testNotFound() {{
+        Mockito.when(repositoryPort.findById(testId)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.getById(testId));
+    }}
+}}
+"""
+
+        # Resource Integration Test
+        test_payload_code = 'String payload = "{\\"name\\": \\"Integration Test Item\\", \\"code\\": \\"TEST-100\\", \\"amount\\": 150.50}";'
+        files[f"src/test/java/{pkg_path}/adapter/in/web/{primary_entity}ResourceTest.java"] = f"""package {pkg_prefix}.adapter.in.web;
+
+import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.security.TestSecurity;
+import io.restassured.http.ContentType;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+@QuarkusTest
+public class {primary_entity}ResourceTest {{
+
+    @Test
+    @TestSecurity(user = "adminUser", roles = {{"ADMIN", "OPERATOR"}})
+    @DisplayName("POST /api/v1/{primary_table} - Should create entity and return 201 Created")
+    void testCreateEndpoint() {{
+        {test_payload_code}
+
+        given()
+            .contentType(ContentType.JSON)
+            .body(payload)
+            .when().post("/api/v1/{primary_table}")
+            .then()
+            .statusCode(201)
+            .header("Location", notNullValue())
+            .body("code", equalTo("TEST-100"));
+    }}
+
+    @Test
+    @TestSecurity(user = "auditorUser", roles = {{"AUDITOR"}})
+    @DisplayName("GET /api/v1/{primary_table} - Should list entities with 200 OK")
+    void testSearchEndpoint() {{
+        given()
+            .when().get("/api/v1/{primary_table}")
+            .then()
+            .statusCode(200)
+            .body("content", notNullValue());
+    }}
+
+    @Test
+    @DisplayName("Unauthenticated request should return 401 Unauthorized")
+    void testUnauthorized() {{
+        given()
+            .when().get("/api/v1/{primary_table}")
+            .then()
+            .statusCode(401);
+    }}
+}}
+"""
+
+
+class UniversalSynthesizer:
+    def __init__(self, client_code: str = 'bcp', package_prefix: str = 'pe.com.bcp'):
+        self.client_code = client_code
+        self.package_prefix = package_prefix
+
+    def synthesize_from_spec(self, spec: dict) -> dict:
+        state = {
+            'client_code': self.client_code,
+            'blueprint': {
+                'package_prefix': self.package_prefix,
+                'artifact_id': spec.get('service', {}).get('name', 'sample-service'),
+            },
+            'service_spec': spec,
+            'config': {},
+            'files': {}
+        }
+        res = CodeSynthesizer.guarantee_project(state)
+        return res.get('files', {})

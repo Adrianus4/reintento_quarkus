@@ -1,0 +1,102 @@
+{
+  "id": "CASE-02",
+  "name": "Kafka Consumer-Processor-Producer Event Pipeline",
+  "category": "EVENT_STREAMING",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio de procesamiento de eventos en streaming. Consume eventos de transacciones financieras desde 'transactions-in', valida montos con BigDecimal, enriquece con scoring y publica eventos a 'transactions-enriched'.",
+  "spec": {
+    "service": {
+      "name": "transaction-pipeline-service",
+      "purpose": "Stream processing of financial transactions",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "kafka_consumer",
+        "details": {
+          "channel": "transactions-in",
+          "topic": "pe.com.bcp.tx.raw.v1"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "kafka_producer",
+        "details": {
+          "channel": "transactions-enriched",
+          "topic": "pe.com.bcp.tx.enriched.v1"
+        }
+      },
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "tx_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "TransactionEvent",
+          "table_name": "transaction_events",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "accountId",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "amount",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "status",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "TransactionEnricher",
+          "kind": "transformer",
+          "responsibilities": [
+            "Validate amount",
+            "Enrich event payload"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-02",
+        "given": "Raw transaction event on Kafka channel",
+        "when": "Message arrives on transactions-in",
+        "then": "Validates and emits enriched event to transactions-enriched",
+        "examples": [
+          {
+            "input": {
+              "amount": 1500.0
+            },
+            "expected_output": {
+              "status": "ENRICHED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "security": "mTLS",
+      "observability": "OpenTelemetry"
+    }
+  }
+}

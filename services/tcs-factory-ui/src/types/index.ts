@@ -199,9 +199,29 @@ export interface VerificationManifest {
   files: ManifestFileEntry[];
 }
 
+export interface StructuredFailure {
+  phase: string;
+  file?: string;
+  line?: number;
+  message: string;
+  test_name?: string;
+}
+
+export interface PhaseResult {
+  phase: string;
+  status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
+  duration_ms: number;
+  details?: string;
+  failures: StructuredFailure[];
+}
+
 export interface VerificationResult {
   run_id: string;
   status: 'SUCCESS' | 'FAILED' | 'ERROR';
+  verdict?: 'PASSED' | 'FAILED' | 'ERROR';
+  veto_applied?: boolean;
+  phase_results?: PhaseResult[];
+  structured_failures?: StructuredFailure[];
   build_tool: string;
   compiler_logs: string;
   manifest?: VerificationManifest;

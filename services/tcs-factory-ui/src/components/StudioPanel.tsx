@@ -359,6 +359,34 @@ export const StudioPanel: React.FC = () => {
     ]);
   };
 
+  const handleAddFieldToEntity = (entityIdx: number) => {
+    const updated = [...entities];
+    updated[entityIdx].fields.push({
+      name: `field${updated[entityIdx].fields.length + 1}`,
+      type: 'String',
+      required: true,
+      isId: false,
+    });
+    setEntities(updated);
+  };
+
+  const handleRemoveFieldFromEntity = (entityIdx: number, fieldIdx: number) => {
+    const updated = [...entities];
+    updated[entityIdx].fields.splice(fieldIdx, 1);
+    setEntities(updated);
+  };
+
+  const handleUpdateFieldInEntity = (
+    entityIdx: number,
+    fieldIdx: number,
+    key: string,
+    val: any
+  ) => {
+    const updated = [...entities];
+    (updated[entityIdx].fields[fieldIdx] as any)[key] = val;
+    setEntities(updated);
+  };
+
   // Add endpoint
   const handleAddEndpoint = () => {
     setCustomEndpoints([
@@ -1228,6 +1256,170 @@ export const StudioPanel: React.FC = () => {
                   <div>✓ Arquitectura {archStyle}</div>
                   <div>✓ Panache Relacional</div>
                 </div>
+              </div>
+
+              {/* 7.2. PRE-CONSTRUCTION AUDIT & SPEC REVIEW (HUMAN-IN-THE-LOOP) */}
+              <div className="space-y-4 p-5 bg-tcs-dark/90 border border-tcs-blue/40 rounded-2xl shadow-xl animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-tcs-border pb-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="w-9 h-9 rounded-xl bg-tcs-blue/20 border border-tcs-blue/50 flex items-center justify-center text-lg">
+                      📝
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-white flex items-center space-x-2">
+                        <span>7.2. Auditoría & Ajuste de Especificación por IA (Pre-Construcción)</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-tcs-cyan/20 text-tcs-cyan border border-tcs-cyan/30">
+                          HITL VERIFICADO
+                        </span>
+                      </h4>
+                      <p className="text-xs text-tcs-muted">
+                        Revisa y edita los modelos, campos y firmas de la arquitectura antes de que los agentes escriban el código final.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEntity}
+                    className="px-3 py-1.5 bg-tcs-surface hover:bg-tcs-dark border border-tcs-border text-tcs-cyan hover:text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shrink-0"
+                  >
+                    <span>+</span>
+                    <span>Nueva Entidad</span>
+                  </button>
+                </div>
+
+                {entities.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-tcs-card border border-tcs-border/60 text-center space-y-2">
+                    <p className="text-xs text-tcs-muted">
+                      No se han modelado entidades aún. Puedes agregar una manualmente o usar "Analizar con IA" en la Fase 1.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAddEntity}
+                      className="px-3 py-1.5 bg-tcs-blue text-white rounded-xl text-xs font-bold"
+                    >
+                      + Agregar Primera Entidad
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {entities.map((ent, entIdx) => (
+                      <div key={entIdx} className="p-4 bg-tcs-card border border-tcs-border rounded-xl space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-tcs-border/50 pb-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-tcs-cyan">Entidad:</span>
+                            <input
+                              type="text"
+                              value={ent.name}
+                              onChange={(e) => {
+                                const updated = [...entities];
+                                updated[entIdx].name = e.target.value;
+                                setEntities(updated);
+                              }}
+                              className="px-2.5 py-1 bg-tcs-dark border border-tcs-border rounded-lg text-xs font-bold text-white font-mono focus:border-tcs-blue focus:outline-none"
+                            />
+                            <span className="text-xs text-tcs-muted font-mono">Tabla:</span>
+                            <input
+                              type="text"
+                              value={ent.tableName || ''}
+                              onChange={(e) => {
+                                const updated = [...entities];
+                                updated[entIdx].tableName = e.target.value;
+                                setEntities(updated);
+                              }}
+                              className="px-2.5 py-1 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-slate-300 font-mono focus:border-tcs-blue focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAddFieldToEntity(entIdx)}
+                              className="px-2.5 py-1 bg-tcs-dark hover:bg-tcs-surface border border-tcs-border text-tcs-cyan hover:text-white rounded-lg text-[11px] font-bold transition-all"
+                            >
+                              + Campo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEntities(entities.filter((_, i) => i !== entIdx))}
+                              className="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 rounded"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs font-mono">
+                            <thead>
+                              <tr className="text-tcs-muted border-b border-tcs-border/30 text-[11px]">
+                                <th className="pb-1.5">Nombre del Campo</th>
+                                <th className="pb-1.5">Tipo Java</th>
+                                <th className="pb-1.5 text-center">Requerido</th>
+                                <th className="pb-1.5 text-center">ID</th>
+                                <th className="pb-1.5 text-right">Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-tcs-border/20">
+                              {ent.fields.map((f, fIdx) => (
+                                <tr key={fIdx}>
+                                  <td className="py-1.5 pr-2">
+                                    <input
+                                      type="text"
+                                      value={f.name}
+                                      onChange={(e) => handleUpdateFieldInEntity(entIdx, fIdx, 'name', e.target.value)}
+                                      className="w-full px-2 py-0.5 bg-tcs-dark border border-tcs-border rounded text-xs text-white"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 pr-2">
+                                    <select
+                                      value={f.type}
+                                      onChange={(e) => handleUpdateFieldInEntity(entIdx, fIdx, 'type', e.target.value)}
+                                      className="px-2 py-0.5 bg-tcs-dark border border-tcs-border rounded text-xs text-white"
+                                    >
+                                      <option value="String">String</option>
+                                      <option value="UUID">UUID</option>
+                                      <option value="Long">Long</option>
+                                      <option value="Integer">Integer</option>
+                                      <option value="BigDecimal">BigDecimal</option>
+                                      <option value="Boolean">Boolean</option>
+                                      <option value="LocalDateTime">LocalDateTime</option>
+                                      <option value="LocalDate">LocalDate</option>
+                                    </select>
+                                  </td>
+                                  <td className="py-1.5 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={f.required}
+                                      onChange={(e) => handleUpdateFieldInEntity(entIdx, fIdx, 'required', e.target.checked)}
+                                      className="rounded bg-tcs-dark border-tcs-border"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!f.isId}
+                                      onChange={(e) => handleUpdateFieldInEntity(entIdx, fIdx, 'isId', e.target.checked)}
+                                      className="rounded bg-tcs-dark border-tcs-border"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFieldFromEntity(entIdx, fIdx)}
+                                      className="text-rose-400 hover:text-rose-300 text-xs px-1"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* THE FINAL GENERATION BUTTON (EXCLUSIVELY IN PHASE 7!) */}

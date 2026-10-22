@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Inter-service URLs
     GOVERNANCE_SERVICE_URL: str = "http://localhost:8002/api/v1"
+    SANDBOX_SERVICE_URL: str = "http://localhost:8004/api/v1/verifier"
 
     # JWT Authentication
     JWT_SECRET_KEY: str = "tcs-factory-dev-secret-change-in-prod-0987654321"
@@ -51,4 +52,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

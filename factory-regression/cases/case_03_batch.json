@@ -1,0 +1,105 @@
+{
+  "id": "CASE-03",
+  "name": "Batch Financial Reconciliation",
+  "category": "BATCH",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio batch para reconciliación nocturna de saldos contables. Lee archivos o lotes de movimientos, calcula descuadres monetarios en BigDecimal y actualiza el estado contable.",
+  "spec": {
+    "service": {
+      "name": "batch-reconciliation-service",
+      "purpose": "Nightly batch financial reconciliation",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "batch_job",
+        "details": {
+          "job_name": "nightlyReconciliationJob",
+          "cron": "0 0 2 * * ?"
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "sqlserver_panache",
+          "database_name": "ledger_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "ReconciliationRecord",
+          "table_name": "reconciliation_records",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "batchDate",
+              "type": "LocalDate",
+              "required": true
+            },
+            {
+              "name": "totalDebit",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "totalCredit",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "difference",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "status",
+              "type": "String",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "ReconciliationProcessor",
+          "kind": "calculator",
+          "responsibilities": [
+            "Calculate ledger balance",
+            "Detect imbalances"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-03",
+        "given": "Daily transactions closing",
+        "when": "Batch job triggers",
+        "then": "Generates reconciliation summary and persists to DB",
+        "examples": [
+          {
+            "input": {
+              "batchDate": "2026-10-21"
+            },
+            "expected_output": {
+              "status": "BALANCED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "consistency": "ACID",
+      "observability": "Micrometer"
+    }
+  }
+}

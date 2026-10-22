@@ -1,0 +1,152 @@
+{
+  "id": "CASE-11",
+  "name": "Multi-Entity Relational Domain with Cascades",
+  "category": "MULTI_ENTITY_RELATIONAL",
+  "expected_verdict": "VERDE",
+  "prompt": "Microservicio de gestión de órdenes de compra multi-entidad: Order (1:N) con OrderItem, y Customer (1:N) con Order. Panache Active Record con transacciones ACID y cálculo de totales en BigDecimal.",
+  "spec": {
+    "service": {
+      "name": "order-management-service",
+      "purpose": "Complex multi-entity relational e-commerce order service",
+      "archetype_hint": "hexagonal"
+    },
+    "inbound": [
+      {
+        "kind": "rest",
+        "details": {
+          "path": "/api/v1/orders",
+          "methods": [
+            "POST",
+            "GET"
+          ]
+        }
+      }
+    ],
+    "outbound": [
+      {
+        "kind": "database",
+        "details": {
+          "type": "postgresql_panache",
+          "database_name": "orders_db"
+        }
+      }
+    ],
+    "domain": {
+      "data_models": [
+        {
+          "name": "Customer",
+          "table_name": "customers",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "name",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "email",
+              "type": "String",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "PurchaseOrder",
+          "table_name": "purchase_orders",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "customerId",
+              "type": "UUID",
+              "required": true
+            },
+            {
+              "name": "totalAmount",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "orderStatus",
+              "type": "String",
+              "required": true
+            }
+          ]
+        },
+        {
+          "name": "OrderItem",
+          "table_name": "order_items",
+          "fields": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "required": true,
+              "is_id": true
+            },
+            {
+              "name": "orderId",
+              "type": "UUID",
+              "required": true
+            },
+            {
+              "name": "productSku",
+              "type": "String",
+              "required": true
+            },
+            {
+              "name": "unitPrice",
+              "type": "BigDecimal",
+              "required": true
+            },
+            {
+              "name": "quantity",
+              "type": "Integer",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "components": [
+        {
+          "name": "OrderService",
+          "kind": "orchestrator",
+          "responsibilities": [
+            "Calculate order total",
+            "Save with transaction"
+          ]
+        }
+      ]
+    },
+    "behaviors": [
+      {
+        "id": "BEH-11",
+        "given": "Order with 3 order items",
+        "when": "POST /api/v1/orders is submitted",
+        "then": "Calculates sum of item prices and persists parent order and items",
+        "examples": [
+          {
+            "input": {
+              "itemsCount": 3
+            },
+            "expected_output": {
+              "status": "CREATED"
+            }
+          }
+        ]
+      }
+    ],
+    "non_functional": {
+      "consistency": "ACID",
+      "security": "JWT"
+    }
+  }
+}
