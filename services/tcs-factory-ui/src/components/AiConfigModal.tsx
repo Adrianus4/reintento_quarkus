@@ -296,6 +296,14 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({
                 {showKey ? '🙈' : '👁️'}
               </button>
             </div>
+            {selectedProvider === 'GEMINI' && apiKey && !apiKey.startsWith('AIzaSy') && (
+              <p className="text-[11px] text-amber-300 mt-1.5 flex items-start space-x-1 bg-amber-950/40 p-2 rounded-lg border border-amber-600/40">
+                <span>⚠️</span>
+                <span>
+                  <strong>Aviso Gemini:</strong> Las API Keys oficiales de Google AI Studio siempre empiezan por <code className="text-white font-mono">AIzaSy...</code>. Las claves que empiezan por <code className="text-white font-mono">AQ...</code> o cookies no son válidas para esta API y Google las rechazará con error 401. Consigue tu API Key gratuita en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline text-tcs-cyan font-bold">aistudio.google.com/app/apikey</a>.
+                </span>
+              </p>
+            )}
             <p className="text-[11px] text-tcs-muted mt-1.5">
               🔒 Tu llave se cifra en reposo en la bóveda backend (Fernet AES-128). Nunca se expone en logs ni en plano.
             </p>
