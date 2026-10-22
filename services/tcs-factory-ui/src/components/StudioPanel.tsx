@@ -148,13 +148,7 @@ export const StudioPanel: React.FC = () => {
     setEventTopicOut(`pe.com.${code}.events.v1`);
     setEventTopicIn(`pe.com.${code}.notifications.v1`);
     setActivePhase(1);
-    // Check if there is already a generated job for this client to restore state
-    api.orchestrator.listJobs().then((jobs: any[]) => {
-      const clientJob = jobs.find((j: any) => (j.client_code || j.client_id || '').toLowerCase() === code);
-      if (clientJob) {
-        setCurrentJob(clientJob);
-      }
-    }).catch(() => {});
+    setCurrentJob(null);
     setError(null);
     setInferSuccessMessage(null);
   };
@@ -186,6 +180,7 @@ export const StudioPanel: React.FC = () => {
     setError(null);
     setIsInferring(true);
     setInferSuccessMessage(null);
+    setCurrentJob(null);
 
     try {
       const res = await api.orchestrator.inferSpec({
@@ -520,15 +515,31 @@ export const StudioPanel: React.FC = () => {
       )}
 
       {inferSuccessMessage && (
-        <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs flex items-center justify-between">
-          <span>{inferSuccessMessage}</span>
-          <button
-            type="button"
-            onClick={() => setInferSuccessMessage(null)}
-            className="text-emerald-400 hover:text-white ml-2"
-          >
-            ✕
-          </button>
+        <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg animate-fadeIn">
+          <div className="flex items-center space-x-2.5">
+            <span className="text-lg">💡</span>
+            <span className="leading-relaxed">{inferSuccessMessage}</span>
+          </div>
+          <div className="flex items-center space-x-2 self-end sm:self-auto shrink-0">
+            {activePhase < 7 && (
+              <button
+                type="button"
+                onClick={() => setActivePhase(activePhase + 1)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow flex items-center space-x-1.5 transition-all"
+              >
+                <span>Avanzar a Fase {activePhase + 1}</span>
+                <span>→</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setInferSuccessMessage(null)}
+              className="text-emerald-400 hover:text-white p-1 text-sm"
+              title="Cerrar mensaje"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -1392,8 +1403,8 @@ export const StudioPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Generated Code Viewer & Verifier (When Job Exists) */}
-      {currentJob && currentJob.files && (Array.isArray(currentJob.files) ? currentJob.files.length > 0 : Object.keys(currentJob.files).length > 0) && (
+      {/* 4. Generated Code Viewer & Verifier (Exclusively in Phase 7 when fabricated) */}
+      {activePhase === 7 && currentJob && currentJob.files && (Array.isArray(currentJob.files) ? currentJob.files.length > 0 : Object.keys(currentJob.files).length > 0) && (
         <div id="generated-code-section" className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-4 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-tcs-border pb-4">
             <div>
