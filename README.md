@@ -120,3 +120,4 @@ quakus/
 ## 🛡️ License
 
 Tata Consultancy Services © 2026. All Rights Reserved.
+
