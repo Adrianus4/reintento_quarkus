@@ -50,8 +50,14 @@ class GeminiClient(BaseLLMClient):
                     return True, "Conectado exitosamente con Google Gemini."
                 try:
                     err_json = resp.json()
-                    err_msg = err_json.get("error", {}).get("message", resp.text)
-                    return False, f"Google Gemini API error ({resp.status_code}): {err_msg}"
+                    raw_msg = err_json.get("error", {}).get("message", resp.text)
+                    if resp.status_code == 401:
+                        err_msg = f"Token OAuth inválido o expirado (401). Para Gemini debes ingresar una API Key de Google AI Studio que comience con 'AIzaSy...' (obtenla gratis en https://aistudio.google.com/app/apikey). Detalle: {raw_msg}"
+                    elif resp.status_code == 400 and "API key not valid" in raw_msg:
+                        err_msg = f"API Key de Gemini no válida (400). Verifica que comience con 'AIzaSy...' y esté copiada exactamente desde Google AI Studio: https://aistudio.google.com/app/apikey"
+                    else:
+                        err_msg = f"Google Gemini API error ({resp.status_code}): {raw_msg}"
+                    return False, err_msg
                 except Exception:
                     return False, f"Google Gemini error ({resp.status_code}): {resp.text[:150]}"
         except Exception as exc:
@@ -79,10 +85,14 @@ class GeminiClient(BaseLLMClient):
             if resp.status_code != 200:
                 try:
                     err_json = resp.json()
-                    err_msg = err_json.get("error", {}).get("message", resp.text)
-                    raise ValueError(f"Google Gemini API error ({resp.status_code}): {err_msg}")
+                    raw_msg = err_json.get("error", {}).get("message", resp.text)
+                    if resp.status_code == 401:
+                        raise ValueError(f"Token OAuth de Gemini inválido o expirado (401). Debes ingresar una API Key de Google AI Studio (comienza con 'AIzaSy...'): https://aistudio.google.com/app/apikey. Detalle: {raw_msg}")
+                    elif resp.status_code == 400 and "API key not valid" in raw_msg:
+                        raise ValueError(f"API Key de Gemini no válida (400). Verifica que la clave comience con 'AIzaSy...' en https://aistudio.google.com/app/apikey")
+                    raise ValueError(f"Google Gemini API error ({resp.status_code}): {raw_msg}")
                 except Exception as inner:
-                    if "Google Gemini API error" in str(inner):
+                    if "Gemini" in str(inner):
                         raise
                     resp.raise_for_status()
 

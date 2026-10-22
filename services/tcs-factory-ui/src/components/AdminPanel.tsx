@@ -684,6 +684,19 @@ export const AdminPanel: React.FC = () => {
                 <p className="text-[11px] text-tcs-muted mt-1">
                   🔒 Tu clave se prueba inmediatamente y se almacena encriptada en la base de datos local.
                 </p>
+                {vaultKeyProvider === 'GEMINI' && (
+                  <p className="text-[11px] text-amber-300/90 mt-1.5 p-2 rounded-lg bg-amber-950/30 border border-amber-800/50">
+                    💡 <strong>Atención Gemini:</strong> Google exige una <strong>API Key de Google AI Studio</strong> (debe iniciar con <code className="bg-amber-900/40 px-1 py-0.5 rounded font-mono text-white">AIzaSy...</code>). No uses tokens OAuth temporales (ya29 o AQ.). Obtenla gratis en{' '}
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline font-bold text-tcs-cyan hover:text-white">
+                      aistudio.google.com/app/apikey ↗
+                    </a>
+                  </p>
+                )}
+                {vaultKeyProvider === 'DEEPSEEK' && (
+                  <p className="text-[11px] text-cyan-300/90 mt-1.5 p-2 rounded-lg bg-cyan-950/30 border border-cyan-800/50">
+                    🐋 <strong>Proveedor DeepSeek:</strong> Pega tu clave de <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noreferrer" className="underline font-bold text-tcs-cyan hover:text-white">platform.deepseek.com ↗</a>. Se conectará directamente al modelo <code className="bg-cyan-900/40 px-1 py-0.5 rounded font-mono text-white">deepseek-chat</code>.
+                  </p>
+                )}
               </div>
 
               <div>
