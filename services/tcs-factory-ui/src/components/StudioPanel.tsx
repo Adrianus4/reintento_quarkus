@@ -15,7 +15,12 @@ import {
   CustomEndpoint,
 } from '../types';
 
-export const StudioPanel: React.FC = () => {
+export interface StudioPanelProps {
+  loadedJob?: OrchestrationJob | null;
+  onJobCreated?: () => void;
+}
+
+export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreated }) => {
   const { user } = useAuth();
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [activeClient, setActiveClient] = useState<ClientProfile | null>(null);
@@ -91,6 +96,26 @@ export const StudioPanel: React.FC = () => {
   const [isSavingFiles, setIsSavingFiles] = useState<boolean>(false);
   const [isVerifierOpen, setIsVerifierOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronize when a job is loaded from the Workspace History Sidebar
+  useEffect(() => {
+    if (loadedJob) {
+      setCurrentJob(loadedJob);
+      setActivePhase(7);
+      const cCode = loadedJob.client_id || (loadedJob as any).client_code;
+      if (cCode) {
+        setSelectedClient(cCode.toLowerCase());
+      }
+      const art = (loadedJob as any).blueprint?.artifact_id || (loadedJob as any).artifact_id;
+      if (art) {
+        setArtifactId(art);
+      }
+      setTimeout(() => {
+        const el = document.getElementById('fabrication-success-card') || document.getElementById('generated-code-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [loadedJob]);
 
   // Load clients accessible to current user
   const fetchAuthorizedClients = async () => {
@@ -316,6 +341,7 @@ export const StudioPanel: React.FC = () => {
 
       setCurrentJob(job);
       setIsGenerating(false);
+      if (onJobCreated) onJobCreated();
       setTimeout(() => {
         const el = document.getElementById('fabrication-success-card') || document.getElementById('generated-code-section');
         if (el) el.scrollIntoView({ behavior: 'smooth' });

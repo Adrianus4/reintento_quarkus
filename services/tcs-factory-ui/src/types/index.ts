@@ -124,6 +124,9 @@ export interface OrchestrationJob {
   current_stage: PipelineStage;
   requirements: string;
   files: GeneratedFile[];
+  blueprint?: any;
+  architecture_style?: string;
+  artifact_id?: string;
   error_message?: string;
   metrics: {
     total_tokens?: number;

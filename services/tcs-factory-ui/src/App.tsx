@@ -6,10 +6,14 @@ import { LoginModal } from './components/LoginModal';
 import { StudioPanel } from './components/StudioPanel';
 import { AdminPanel } from './components/AdminPanel';
 import { ConsumptionPanel } from './components/ConsumptionPanel';
+import { WorkspaceHistorySidebar } from './components/WorkspaceHistorySidebar';
+import { OrchestrationJob } from './types';
 
 export const App: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [currentTab, setCurrentTab] = useState<'studio' | 'consumption' | 'admin'>('studio');
+  const [loadedJob, setLoadedJob] = useState<OrchestrationJob | null>(null);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState<number>(0);
 
   if (isLoading) {
     return (
@@ -45,8 +49,8 @@ export const App: React.FC = () => {
       />
 
       <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col md:flex-row">
-        {/* Left Sidebar Navigation */}
-        <aside className="w-full md:w-56 border-b md:border-b-0 md:border-r border-tcs-border p-4 bg-tcs-navy/40 shrink-0">
+        {/* Left Sidebar Navigation & Workspace History */}
+        <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-tcs-border p-4 bg-tcs-navy/40 shrink-0 flex flex-col">
           <div className="text-[10px] font-bold uppercase tracking-wider text-tcs-muted mb-3 px-2">
             Módulos de Fábrica
           </div>
@@ -95,11 +99,26 @@ export const App: React.FC = () => {
               </button>
             )}
           </nav>
+
+          {/* Módulo de Registros del Workspace y Microservicios Generados */}
+          <WorkspaceHistorySidebar
+            onSelectJob={(job) => {
+              setLoadedJob(job);
+              setCurrentTab('studio');
+            }}
+            selectedJobId={loadedJob?.job_id || (loadedJob as any)?.id}
+            refreshTrigger={historyRefreshTrigger}
+          />
         </aside>
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 overflow-x-hidden min-w-0">
-          {activeTab === 'studio' && <StudioPanel />}
+          {activeTab === 'studio' && (
+            <StudioPanel
+              loadedJob={loadedJob}
+              onJobCreated={() => setHistoryRefreshTrigger((prev) => prev + 1)}
+            />
+          )}
           {activeTab === 'consumption' && <ConsumptionPanel />}
           {activeTab === 'admin' && <AdminPanel />}
         </main>
@@ -118,4 +137,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-
