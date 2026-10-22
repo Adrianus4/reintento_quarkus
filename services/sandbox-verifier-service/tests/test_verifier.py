@@ -10,7 +10,12 @@ def test_health_check(client: TestClient):
     assert data["port"] == 8004
 
 
-def test_end_to_end_verification_and_download(client: TestClient, bcp_dev_headers: dict):
+def test_end_to_end_verification_and_download(client: TestClient, bcp_dev_headers: dict, monkeypatch):
+    # Exercise the HTTP/ZIP contract with an explicit successful native-process stub.
+    from app.core import compiler
+    from unittest.mock import Mock
+    monkeypatch.setattr(compiler,'get_maven_binary',lambda:'/usr/bin/mvn')
+    monkeypatch.setattr(compiler.subprocess,'run',Mock(return_value=Mock(returncode=0,stdout='BUILD SUCCESS',stderr='')))
     payload = {
         "client_code": "bcp",
         "files": {

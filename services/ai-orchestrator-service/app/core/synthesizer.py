@@ -379,7 +379,18 @@ class CodeSynthesizer:
         blueprint: Dict[str, Any] = state.get("blueprint", {})
         client_code: str = state.get("client_code", "bcp").lower()
 
-        pkg_prefix = blueprint.get("package_prefix") or f"pe.com.{client_code}.service"
+        pkg_prefix = (
+            state.get("config", {}).get("package_prefix")
+            or state.get("service_spec", {}).get("governance_ref", {}).get("package_prefix")
+            or blueprint.get("governance_ref", {}).get("package_prefix")
+            or blueprint.get("package_prefix")
+            or state.get("governance_context", {}).get("package_prefix")
+            or f"pe.com.{client_code}.service"
+        )
+        from app.core.spec_linter import JAVA_RESERVED_WORDS
+        if any(not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", part)
+               or part in JAVA_RESERVED_WORDS for part in pkg_prefix.split(".")):
+            raise ValueError(f"Invalid Java package prefix: {pkg_prefix}")
         artifact_id = blueprint.get("artifact_id") or state.get("config", {}).get("artifact_id") or state.get("service_spec", {}).get("service", {}).get("name") or f"{client_code}-microservice"
         pkg_path = pkg_prefix.replace(".", "/")
 
@@ -1619,7 +1630,7 @@ public class BookResource {{
     def _guarantee_tests(cls, files: Dict[str, str], pkg_prefix: str, pkg_path: str, primary_entity: str, primary_table: str, fields: List[Dict[str, Any]], default_status: str):
         """Ensure unit & integration tests compile and pass with Mockito and TestSecurity."""
         if primary_entity.lower() in ["book", "libro"]:
-            book_payload_code = 'String payload = "{\\"title\\": \\"Clean Code\\", \\"author\\": \\"Robert C. Martin\\", \\"isbn\\": \\"9780132350884\\", \\"price\\": 39.99, \\"stock\\": 15, \\"categoryId\\": \\"a0000000-0000-0000-0000-000000000001\\"}";'
+            book_payload_code = 'String payload = "{\\"title\\": \\"Clean Code\\", \\"author\\": \\"Robert C. Martin\\", \\"isbn\\": \\"9780134494166\\", \\"price\\": 39.99, \\"stock\\": 15, \\"categoryId\\": \\"a0000000-0000-0000-0000-000000000001\\"}";'
             files[f"src/test/java/{pkg_path}/application/service/BookServiceTest.java"] = f"""package {pkg_prefix}.application.service;
 
 import {pkg_prefix}.domain.exception.ResourceNotFoundException;

@@ -1,3 +1,4 @@
+import { DownloadButton } from './DownloadButton';
 // src/components/StudioPanel.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -1503,14 +1504,12 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({ loadedJob, onJobCreate
 
                       {/* Botones de Descarga Directa */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <a
-                          href={api.orchestrator.getJobDownloadUrl(currentJob.job_id || (currentJob as any).id)}
-                          download
+                        <DownloadButton url={api.orchestrator.getJobDownloadUrl(currentJob.job_id || (currentJob as any).id)} disabled={!currentJob.files?.length}
                           className="py-3 px-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.02]"
                         >
                           <span className="text-lg">📦</span>
                           <span>Descargar Microservicio (.ZIP)</span>
-                        </a>
+                        </DownloadButton>
 
                         <button
                           type="button"

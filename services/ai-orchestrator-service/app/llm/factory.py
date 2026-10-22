@@ -19,6 +19,10 @@ class LLMClientFactory:
         active_prov = config.active_provider.lower().strip() if config and config.active_provider else None
         model_name = getattr(config, "model_name", None) if config else None
 
+        # Explicit offline selection must never inspect credentials or paid-provider keys.
+        if active_prov == "mock":
+            return MockLLMClient(mode="balanced")
+
         # 2. Check for matching active credential
         cred = None
         if active_prov and active_prov != "mock":

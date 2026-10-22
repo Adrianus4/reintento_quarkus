@@ -22,7 +22,9 @@ def test_setup_admin_clean_state_and_idempotency_block(client: TestClient):
     }
     response = client.post("/api/v1/auth/setup-admin", json=payload)
     assert response.status_code == 201
-    data = response.json()
+    token_response = response.json()
+    assert token_response["access_token"]
+    data = token_response["user"]
     assert data["email"] == "bootstrap.admin@tcs.com"
     assert data["role"] == "ADMIN"
     assert data["is_active"] is True
@@ -44,6 +46,23 @@ def test_login_success(client: TestClient, admin_user: User):
     assert data["token_type"] == "bearer"
     assert data["user"]["email"] == admin_user.email
     assert data["user"]["role"] == "ADMIN"
+
+
+def test_register_cannot_reset_existing_password(client: TestClient, admin_user: User):
+    response=client.post('/api/v1/auth/register',json={
+        'email':admin_user.email,'password':'Replacement123!','full_name':'Replacement','role':'ADMIN'})
+    assert response.status_code==409
+    assert client.post('/api/v1/auth/login',json={
+        'email':admin_user.email,'password':'AdminPass123!'}).status_code==200
+    assert client.post('/api/v1/auth/login',json={
+        'email':admin_user.email,'password':'Replacement123!'}).status_code==401
+
+
+def test_public_registration_cannot_add_admin(client: TestClient, admin_user: User):
+    response=client.post('/api/v1/auth/register',json={
+        'email':'new@example.com','password':'Password123!','full_name':'New User','role':'ADMIN'})
+    assert response.status_code==201
+    assert response.json()['user']['role']=='DEVELOPER'
 
 
 def test_login_invalid_password(client: TestClient, admin_user: User):

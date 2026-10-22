@@ -1,3 +1,4 @@
+import { DownloadButton } from './DownloadButton';
 // src/components/VerifierModal.tsx
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
@@ -104,14 +105,12 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
 
           <div className="flex items-center space-x-3">
             {result && !vetoApplied ? (
-              <a
-                href={api.verifier.getDownloadUrl(result.run_id || (result as any).id)}
-                download
+              <DownloadButton url={api.verifier.getDownloadUrl(result.run_id || (result as any).id)} disabled={false}
                 className="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 transform hover:scale-[1.02]"
               >
                 <span>📦</span>
                 <span>Descargar Microservicio (.ZIP)</span>
-              </a>
+              </DownloadButton>
             ) : (
               <span
                 title="Descarga bloqueada: El sandbox aplicó VETO por fallos de integridad"

@@ -28,7 +28,12 @@ public class BrokenAccount {
 """
 
 
-def test_compiler_success(client: TestClient, bcp_dev_headers: dict):
+def test_compiler_success(client: TestClient, bcp_dev_headers: dict, monkeypatch):
+    # HTTP contract fixture; native Java compilation is exercised separately.
+    from app.core import compiler
+    from unittest.mock import Mock
+    monkeypatch.setattr(compiler,'get_maven_binary',lambda:'/usr/bin/mvn')
+    monkeypatch.setattr(compiler.subprocess,'run',Mock(return_value=Mock(returncode=0,stdout='BUILD SUCCESS',stderr='')))
     payload = {
         "client_code": "bcp",
         "files": {

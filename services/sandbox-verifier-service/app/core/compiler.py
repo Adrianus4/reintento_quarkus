@@ -174,7 +174,7 @@ def run_compilation_verification(workspace_dir: Path) -> Tuple[bool, str, int, D
                 cwd=str(workspace_dir),
                 capture_output=True,
                 text=True,
-                shell=True,
+                shell=(os.name == "nt"),
                 timeout=180,
             )
             logs.append(proc.stdout)
@@ -214,8 +214,10 @@ def run_compilation_verification(workspace_dir: Path) -> Tuple[bool, str, int, D
             })
             phase_results["test-compile"] = "FAILED"
     else:
-        logs.append("[WARNING] Maven binary not found on PATH. Validated via deterministic AST grammar.")
-        phase_results["test-compile"] = "SUCCESS"
+        logs.append("[ERROR] Maven unavailable: native compilation cannot be verified.")
+        phase_results["test-compile"] = "FAILED"
+        failures.append({"phase": "test-compile", "file": None, "line": None,
+                         "message": "Maven unavailable. Install Maven and rerun verification."})
 
     if phase_results["test-compile"] == "FAILED":
         logs.append("[ERROR] Phase 2 (test-compile) failed.")
@@ -245,7 +247,7 @@ def run_compilation_verification(workspace_dir: Path) -> Tuple[bool, str, int, D
                     cwd=str(workspace_dir),
                     capture_output=True,
                     text=True,
-                    shell=True,
+                    shell=(os.name == "nt"),
                     timeout=240,
                 )
                 logs.append(test_proc.stdout)

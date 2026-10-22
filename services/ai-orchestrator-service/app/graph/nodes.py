@@ -305,10 +305,11 @@ def spec_lint_and_feasibility_node(state: JobState) -> JobState:
     spec_dict = state["service_spec"]
     spec = ServiceSpec(**spec_dict)
 
-    is_feasible, errors = SpecLinter.lint_and_verify_feasibility(
-        spec,
-        state.get("governance_context", {})
-    )
+    context = dict(state.get("governance_context", {}))
+    # The studio's explicit package setting also drives the spec builder.
+    if state.get('config', {}).get('package_prefix'):
+        context['package_prefix'] = state['config']['package_prefix']
+    is_feasible, errors = SpecLinter.lint_and_verify_feasibility(spec, context)
 
     if not is_feasible:
         state["status"] = "FAILED"
@@ -502,6 +503,17 @@ def walking_skeleton_node(state: JobState) -> JobState:
     from app.core.synthesizer import CodeSynthesizer
     # Enforce compilation readiness via synthesizer guarantee engine
     state = CodeSynthesizer.guarantee_project(state)
+    # The deterministic skeleton also creates DTOs, exceptions and auxiliary ports.
+    # Include them in the plan before static gates prune undeclared source files.
+    declared = {entry['path'] for entry in state.get('manifest', [])}
+    manifest = state.setdefault('manifest', [])
+    for path, content in state['files'].items():
+        if path not in declared:
+            import re
+            package = re.search(r'\bpackage\s+([\w.]+)\s*;', content) if path.endswith('.java') else None
+            name = path.rsplit('/', 1)[-1].removesuffix('.java')
+            manifest.append({'path': path, 'fqcn': f'{package.group(1)}.{name}' if package else None,
+                             'origin': 'deterministic', 'public_signatures': [], 'dependencies': []})
     state["status"] = "SKELETON_COMPILED"
     return state
 
@@ -551,33 +563,31 @@ def sandbox_gate_node(state: JobState, token: str = None) -> JobState:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=settings.SANDBOX_TIMEOUT_SECONDS) as client:
             resp = client.post(
                 sandbox_url,
-                json={
-                    "client_code": client_code,
-                    "job_id": state["job_id"],
-                    "files": state["files"],
-                    "auto_verify": True,
-                },
-                headers=headers
+                json={"client_code": client_code, "job_id": state["job_id"],
+                      "files": state["files"], "auto_verify": True},
+                headers=headers,
             )
-            if resp.status_code == 201:
-                run_data = resp.json()
-                state["sandbox_result"] = run_data
-                if run_data.get("veto_applied") or run_data.get("status") in ["REJECTED_BY_VETO", "COMPILATION_FAILED"]:
-                    state["status"] = "VETOED_BY_SANDBOX"
-                    state["error"] = f"Sandbox verification rejected with {len(run_data.get('failures', []))} failure(s)."
-                else:
-                    state["status"] = "VERIFIED_PASSED"
+            if resp.status_code != 201:
+                state["status"] = "VERIFICATION_UNAVAILABLE"
+                state["error"] = f"Sandbox verification unavailable (HTTP {resp.status_code})."
+                return state
+            run_data = resp.json()
+            state["sandbox_result"] = run_data
+            if (run_data.get("status") == "SUCCESS"
+                    and run_data.get("verdict") == "PASSED"
+                    and run_data.get("veto_applied") is False
+                    and not run_data.get("failures")):
+                state["status"] = "VERIFIED_PASSED"
+                state["error"] = None
             else:
-                # If sandbox returned auth error or test client is unauthenticated
-                if state.get("status") != "STATIC_GATES_FAILED":
-                    state["status"] = "VERIFIED_PASSED"
-    except Exception:
-        # In test environments where sandbox is offline, allow if static gates passed
-        if state.get("status") != "STATIC_GATES_FAILED":
-            state["status"] = "VERIFIED_PASSED"
+                state["status"] = "VETOED_BY_SANDBOX"
+                state["error"] = f"Sandbox verification rejected with {len(run_data.get('failures') or [])} failure(s). Status: {run_data.get('status', 'UNKNOWN')}."
+    except Exception as exc:
+        state["status"] = "VERIFICATION_UNAVAILABLE"
+        state["error"] = f"Sandbox verification unavailable ({type(exc).__name__}). Retry verification before approval."
 
     return state
 

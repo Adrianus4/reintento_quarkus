@@ -10,6 +10,7 @@ Validates ServiceSpec before architectural planning:
 """
 
 from typing import Any, Dict, List, Set, Tuple
+import re
 from app.schemas.service_spec import ServiceSpec
 
 
@@ -115,9 +116,15 @@ class SpecLinter:
 
         # 6. Governance prefix check
         pkg_prefix = spec.governance_ref.package_prefix
+        client = governance_context.get('client') or {}
         expected_client = spec.governance_ref.client_code.lower()
-        if not pkg_prefix.startswith(f"pe.com.{expected_client}"):
-            errors.append(f"Package prefix '{pkg_prefix}' does not conform to client governance standard 'pe.com.{expected_client}.*'.")
+        expected_prefix = (governance_context.get('package_prefix') or client.get('package_prefix')
+                           or f'pe.com.{expected_client}')
+        if any(not re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*', part)
+               or part in JAVA_RESERVED_WORDS for part in pkg_prefix.split('.')):
+            errors.append(f"Invalid Java package prefix '{pkg_prefix}': every segment must be a Java identifier, not a number or reserved word.")
+        if pkg_prefix != expected_prefix and not pkg_prefix.startswith(expected_prefix + '.'):
+            errors.append(f"Package prefix '{pkg_prefix}' does not conform to configured prefix '{expected_prefix}'.")
 
         is_feasible = (len(errors) == 0)
         return is_feasible, errors

@@ -1,3 +1,4 @@
+import { DownloadButton } from './DownloadButton';
 // src/components/WorkspaceHistorySidebar.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
@@ -290,6 +291,7 @@ export const WorkspaceHistorySidebar: React.FC<WorkspaceHistorySidebarProps> = (
                       </p>
                     )}
 
+                    {job.error_message && <p role="alert" className="text-xs text-rose-300 mt-1">{job.error_message}</p>}
                     {/* Metadata Pill Row */}
                     <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-tcs-border/40 text-[10px] text-tcs-muted">
                       <div className="flex items-center space-x-2">
@@ -319,17 +321,14 @@ export const WorkspaceHistorySidebar: React.FC<WorkspaceHistorySidebarProps> = (
                           <span>Studio</span>
                         </button>
 
-                        <a
-                          href={api.orchestrator.getJobDownloadUrl(jobId)}
-                          download
-                          title="Descargar paquete .ZIP completo"
-                          onClick={(e) => e.stopPropagation()}
+                        <DownloadButton url={api.orchestrator.getJobDownloadUrl(jobId)} disabled={filesCount === 0}
+                          title={filesCount === 0 ? "No hay archivos generados; revisa el error del trabajo" : "Descargar paquete .ZIP completo"}
                           className="p-1 rounded bg-tcs-card hover:bg-emerald-600/30 text-tcs-muted hover:text-emerald-400 border border-tcs-border hover:border-emerald-500/40 transition-all flex items-center justify-center"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                           </svg>
-                        </a>
+                        </DownloadButton>
                       </div>
                     </div>
                   </div>

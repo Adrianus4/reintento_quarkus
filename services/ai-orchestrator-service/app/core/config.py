@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import os
 from typing import List
 from cryptography.fernet import Fernet
@@ -7,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def _generate_default_vault_key() -> str:
     # Deterministic default key for local MVP dev
-    raw = b"tcs-factory-master-vault-key-32b"  # exactly 32 bytes
+    raw = hashlib.sha256(b"tcs-factory-master-vault-key-32b").digest()
     return base64.urlsafe_b64encode(raw).decode("utf-8")
 
 
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     # Inter-service URLs
     GOVERNANCE_SERVICE_URL: str = "http://localhost:8002/api/v1"
     SANDBOX_SERVICE_URL: str = "http://localhost:8004/api/v1/verifier"
+    SANDBOX_TIMEOUT_SECONDS: float = 480.0
 
     # JWT Authentication
     JWT_SECRET_KEY: str = "tcs-factory-dev-secret-change-in-prod-0987654321"

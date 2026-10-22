@@ -50,12 +50,12 @@ def register(
     db: Session = Depends(get_db)
 ) -> Any:
     """
-    Direct registration: creates or activates user and immediately returns authenticated JWT token.
+    Register a new user; only the first user may bootstrap administrator access.
     """
     email_clean = payload.email.lower().strip()
     user = db.query(User).filter(User.email == email_clean).first()
 
-    target_role = UserRole.ADMIN if (payload.role or "ADMIN").upper() == "ADMIN" else UserRole.DEVELOPER
+    target_role = UserRole.ADMIN if db.query(User).count() == 0 else UserRole.DEVELOPER
 
     if not user:
         user = User(
@@ -69,13 +69,7 @@ def register(
         db.commit()
         db.refresh(user)
     else:
-        # Seamless recovery: update password and activate
-        user.hashed_password = get_password_hash(payload.password)
-        user.full_name = payload.full_name.strip()
-        user.role = target_role
-        user.is_active = True
-        db.commit()
-        db.refresh(user)
+        raise HTTPException(status_code=409, detail="Email already registered. Sign in with the existing password.")
 
     ip = get_client_ip(request)
     audit = AuditLoginLog(
@@ -109,8 +103,10 @@ def setup_initial_admin(
     db: Session = Depends(get_db)
 ) -> Any:
     """
-    Bootstrap or adjust administrator with immediate token issuance.
+    Bootstrap the initial administrator once, with immediate token issuance.
     """
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=409, detail="Initial administrator setup has already been completed.")
     email_clean = payload.email.lower().strip()
     admin_user = db.query(User).filter(User.email == email_clean).first()
 
@@ -123,14 +119,6 @@ def setup_initial_admin(
             is_active=True,
         )
         db.add(admin_user)
-        db.commit()
-        db.refresh(admin_user)
-    else:
-        # Update credentials and guarantee active admin status
-        admin_user.hashed_password = get_password_hash(payload.password)
-        admin_user.full_name = payload.full_name.strip()
-        admin_user.role = UserRole.ADMIN
-        admin_user.is_active = True
         db.commit()
         db.refresh(admin_user)
 

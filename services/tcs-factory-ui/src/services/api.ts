@@ -75,6 +75,33 @@ async function request<T>(baseUrl: string, endpoint: string, options: RequestIni
   return response.json();
 }
 
+export async function downloadZip(url: string): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearStoredToken();
+      window.dispatchEvent(new CustomEvent('tcs:unauthorized'));
+    }
+    let detail = `No se pudo descargar el ZIP (HTTP ${response.status}).`;
+    try { const error = await response.json(); if (typeof error.detail === 'string') detail = error.detail; } catch {}
+    throw new Error(detail);
+  }
+  const blob = await response.blob();
+  const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  if (signature[0] !== 0x50 || signature[1] !== 0x4b ||
+      !((signature[2] === 3 && signature[3] === 4) || (signature[2] === 5 && signature[3] === 6))) {
+    throw new Error('El servidor no devolvió un ZIP válido. Revisa el estado de la generación.');
+  }
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const filename = (disposition.match(/filename="([^"]+)"/)?.[1] || 'microservice.zip').replace(/[\\/:*?"<>|]/g, '_');
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl; anchor.download = filename;
+  document.body.appendChild(anchor); anchor.click(); anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 function normalizeJob(job: any): any {
   if (!job) return job;
   let filesArray: Array<{ path: string; content: string }> = [];

@@ -253,8 +253,7 @@ def get_job(
 @router.get("/jobs/{job_id}/download")
 def download_job_zip(
     job_id: str,
-    token: Optional[str] = Query(None),
-    authorization: Optional[str] = Header(None),
+    user: dict = Depends(get_verified_user),
     db: Session = Depends(get_db)
 ) -> Any:
     """Download the generated Quarkus microservice files directly as a ZIP archive."""
@@ -265,11 +264,12 @@ def download_job_zip(
             detail="Generation job not found"
         )
 
+    verify_client_access(job.client_code, user)
     files_dict = json.loads(job.files_json) if job.files_json else {}
     if not files_dict:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El trabajo de generación no contiene archivos generados"
+            detail=job.error_message or "El trabajo de generación no contiene archivos generados"
         )
 
     zip_buffer = io.BytesIO()
@@ -329,6 +329,8 @@ def approve_job(
 
     verify_client_access(job.client_code, user)
 
+    if job.status not in ("AWAITING_REVIEW", "APPROVED") or job.error_message:
+        raise HTTPException(status_code=409, detail="Project must pass sandbox verification before approval.")
     job.status = "APPROVED"
     db.commit()
     db.refresh(job)

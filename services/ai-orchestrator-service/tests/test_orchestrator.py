@@ -1,4 +1,20 @@
 from fastapi.testclient import TestClient
+import pytest
+import httpx
+
+
+@pytest.fixture(autouse=True)
+def sandbox_contract_stub(monkeypatch):
+    """API contract tests use an explicit verifier stub, not offline success."""
+    from app.graph import nodes
+    original = nodes.httpx.Client
+    def client(*args, **kwargs):
+        def respond(request):
+            if request.url.path.endswith('/runs'):
+                return httpx.Response(201,json={'status':'SUCCESS','verdict':'PASSED','veto_applied':False,'failures':[]})
+            return httpx.Response(503)
+        return original(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(nodes.httpx,'Client',client)
 
 
 def test_start_generation_job_end_to_end(client: TestClient, bcp_dev_headers: dict):

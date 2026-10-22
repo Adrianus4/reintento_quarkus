@@ -90,6 +90,10 @@ class GenerationWorkflow:
             state = static_gates_node(state)
             if state.get("static_gate_failures"):
                 state = repair_agent_node(state, llm)
+                state = static_gates_node(state)
+                if state.get("static_gate_failures"):
+                    state["status"] = "FAILED"
+                    return state
 
             # 10. Ephemeral Sandbox with Strict Veto Power & Auto-Repair Loop
             max_repair_attempts = 4
@@ -97,16 +101,19 @@ class GenerationWorkflow:
                 state = sandbox_gate_node(state, token)
                 if state.get("status") == "VERIFIED_PASSED":
                     break
-                # If vetoed by sandbox, invoke repair agent
+                if state.get("status") == "VERIFICATION_UNAVAILABLE" or attempt == max_repair_attempts - 1:
+                    break
                 state = repair_agent_node(state, llm)
+                state = static_gates_node(state)
+                if state.get("static_gate_failures"):
+                    break
 
             # Final status update
             if state.get("status") == "VERIFIED_PASSED":
                 state["status"] = "AWAITING_REVIEW"
-            elif state.get("status") == "VETOED_BY_SANDBOX":
-                state["status"] = "FAILED"
             else:
-                state["status"] = "AWAITING_REVIEW"
+                state["status"] = "FAILED"
+                state["error"] = state.get("error") or "Project has not passed verification."
 
         except Exception as exc:
             import traceback
