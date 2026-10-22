@@ -59,7 +59,8 @@ class GeminiClient(BaseLLMClient):
                         methods = m.get("supportedGenerationMethods", [])
                         if "generateContent" in methods:
                             clean_name = m.get("name", "").replace("models/", "")
-                            supported.append(clean_name)
+                            if clean_name.startswith("gemini-"):
+                                supported.append(clean_name)
                     if supported:
                         return supported, ver
             except Exception:

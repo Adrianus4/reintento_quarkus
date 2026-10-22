@@ -177,7 +177,7 @@ export const StudioPanel: React.FC = () => {
   };
 
   // AI INFERENCE: Analyze Natural Language Prompt & Auto-Structure All 7 Phases
-  const handleInferSpecWithAI = async () => {
+  const handleInferSpecWithAIWithAI = async () => {
     if (!requirementPrompt.trim()) {
       setError('Escribe primero el requerimiento en lenguaje natural para que la IA pueda estructurar las 7 fases.');
       return;
@@ -629,7 +629,7 @@ export const StudioPanel: React.FC = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={handleInferSpecWithAI}
+                    onClick={handleInferSpecWithAIWithAI}
                     disabled={isInferring || !requirementPrompt.trim()}
                     className="px-5 py-2.5 bg-gradient-to-r from-tcs-blue to-tcs-cyan hover:from-blue-600 hover:to-cyan-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-cyan-900/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-40"
                   >
@@ -976,23 +976,43 @@ export const StudioPanel: React.FC = () => {
 
               {/* Editable Entities Table */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <label className="text-xs font-bold text-white">Entidades del Dominio ({entities.length})</label>
                     <p className="text-[11px] text-tcs-muted">Edita campos, tipos Java y restricciones de persistencia.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddEntity}
-                    className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
-                  >
-                    + Agregar Entidad Manual
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleInferSpecWithAIWithAI}
+                      disabled={isInferring}
+                      className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition-all shadow flex items-center space-x-1"
+                    >
+                      <span>{isInferring ? '⌛ Deduciendo...' : '✨ Deducir Entidades con IA'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddEntity}
+                      className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
+                    >
+                      + Agregar Entidad Manual
+                    </button>
+                  </div>
                 </div>
 
                 {entities.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic text-center">
-                    No hay entidades definidas aún. En la Fase 1, pulsa "Analizar Pedido con IA" para deducir las entidades automáticamente a partir de tu requerimiento.
+                  <div className="p-5 rounded-xl bg-tcs-dark border border-tcs-border text-xs text-center space-y-3">
+                    <p className="text-tcs-muted italic">
+                      No hay entidades definidas aún para este microservicio.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleInferSpecWithAIWithAI}
+                      disabled={isInferring}
+                      className="px-4 py-2 bg-gradient-to-r from-tcs-blue to-tcs-cyan hover:from-blue-600 hover:to-cyan-500 text-white font-bold rounded-xl shadow transition-all mx-auto flex items-center space-x-2"
+                    >
+                      <span>✨ Deducir Entidades del Requerimiento con IA</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">

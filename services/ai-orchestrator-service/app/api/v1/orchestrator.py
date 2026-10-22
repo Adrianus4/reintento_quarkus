@@ -368,7 +368,7 @@ def infer_microservice_spec(
                 '  "security_option": "JWT",\n'
                 '  "jwt_issuer": "string",\n'
                 '  "security_roles": ["ADMIN", "OPERATOR", "AUDITOR"],\n'
-                '  "database_option": "SQLSERVER_PANACHE" or "POSTGRESQL_PANACHE" or "NONE",\n'
+                '  "database_option": "SQLSERVER_PANACHE",\n'
                 '  "database_name": "string",\n'
                 '  "entities": [\n'
                 '    {\n'
@@ -389,24 +389,22 @@ def infer_microservice_spec(
                 '  "event_topic_in": "string"\n'
                 "}"
             )
-            user_prompt = f"Client: {client_code.upper()}\nRequirement: {requirements}"
+            user_prompt = f"Client: {client_code.upper()}\nRequirement: {requirements}\nProvide at least 2 complete domain entities in the 'entities' array with detailed fields."
             text_resp, _, _ = llm.generate(system_prompt, user_prompt)
             from app.graph.nodes import extract_and_parse_json
-            parsed = extract_and_parse_json(text_resp)
-            if isinstance(parsed, dict) and "entities" in parsed and len(parsed["entities"]) > 0:
-                parsed.setdefault("build_tool", "maven")
-                parsed.setdefault("java_version", "21")
-                parsed.setdefault("quarkus_version", "3.15.1")
-                parsed.setdefault("http_port", 8080)
-                parsed.setdefault("architecture_style", "Hexagonal")
-                return parsed
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al inferir con el modelo {getattr(llm, 'model_name', 'LLM')}: {str(exc)}"
-        )
+            try:
+                parsed = extract_and_parse_json(text_resp)
+                if isinstance(parsed, dict) and "entities" in parsed and len(parsed["entities"]) > 0:
+                    parsed.setdefault("build_tool", "maven")
+                    parsed.setdefault("java_version", "21")
+                    parsed.setdefault("quarkus_version", "3.15.1")
+                    parsed.setdefault("http_port", 8080)
+                    parsed.setdefault("architecture_style", "Hexagonal")
+                    return parsed
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     # Determine domain from requirement (Fallback when MOCK is active)
     if any(k in req_lower for k in ["poliza", "seguro", "insurance", "siniestro", "asegurad"]):
@@ -451,20 +449,65 @@ def infer_microservice_spec(
             {"name": "createdAt", "type": "LocalDateTime", "required": True},
         ]
         summary_op = "Originación y cálculo de cuotas de préstamos"
-    elif any(k in req_lower for k in ["pago", "payment", "transfer", "giro"]):
-        domain_name = "pagos"
-        entity_name = "Payment"
-        table_name = "payments"
-        fields = [
-            {"name": "id", "type": "UUID", "required": True, "isId": True},
-            {"name": "sourceAccount", "type": "String", "required": True},
-            {"name": "destinationAccount", "type": "String", "required": True},
-            {"name": "amount", "type": "BigDecimal", "required": True},
-            {"name": "currency", "type": "String", "required": True},
-            {"name": "status", "type": "String", "required": True},
-            {"name": "timestamp", "type": "LocalDateTime", "required": True},
+    elif any(k in req_lower for k in ["transfer", "cuenta", "banc", "giro", "pago", "payment", "saldo"]):
+        domain_name = "cuentas"
+        entities_list = [
+            {
+                "name": "Account",
+                "tableName": "accounts",
+                "fields": [
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
+                    {"name": "accountNumber", "type": "String", "required": True},
+                    {"name": "currency", "type": "String", "required": True},
+                    {"name": "balance", "type": "BigDecimal", "required": True},
+                    {"name": "accountType", "type": "String", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                    {"name": "customerId", "type": "String", "required": True},
+                    {"name": "createdAt", "type": "LocalDateTime", "required": True},
+                ]
+            },
+            {
+                "name": "Transfer",
+                "tableName": "transfers",
+                "fields": [
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
+                    {"name": "sourceAccount", "type": "String", "required": True},
+                    {"name": "destinationAccount", "type": "String", "required": True},
+                    {"name": "amount", "type": "BigDecimal", "required": True},
+                    {"name": "currency", "type": "String", "required": True},
+                    {"name": "referenceCode", "type": "String", "required": True},
+                    {"name": "status", "type": "String", "required": True},
+                    {"name": "executedAt", "type": "LocalDateTime", "required": True},
+                ]
+            }
         ]
-        summary_op = "Procesamiento inmediato de pagos y transferencias"
+        endpoints_list = [
+            {"method": "POST", "path": "/api/v1/transfers", "summary": "Ejecutar transferencia de fondos entre cuentas"},
+            {"method": "GET", "path": "/api/v1/transfers/{id}", "summary": "Consultar comprobante de transferencia"},
+            {"method": "GET", "path": "/api/v1/accounts/{id}", "summary": "Consultar saldo y estado de cuenta"},
+            {"method": "POST", "path": "/api/v1/accounts", "summary": "Crear nueva cuenta bancaria empresarial"},
+        ]
+        return {
+            "artifact_id": f"{client_code}-cuentas-service",
+            "package_prefix": f"pe.com.{client_code}.cuentas",
+            "http_port": 8080,
+            "java_version": "21",
+            "quarkus_version": "3.15.1",
+            "build_tool": "maven",
+            "architecture_style": "Hexagonal",
+            "custom_architecture_notes": f"Arquitectura hexagonal para {client_code.upper()} con puertos in/out, modelos inmutables y trazabilidad transaccional.",
+            "security_option": "JWT",
+            "jwt_issuer": f"https://auth.via{client_code}.com",
+            "security_roles": ["ADMIN", "OPERATOR", "AUDITOR"],
+            "database_option": "SQLSERVER_PANACHE" if client_code == "bcp" else "POSTGRESQL_PANACHE",
+            "database_name": f"{client_code}_cuentas_db",
+            "entities": entities_list,
+            "custom_endpoints": endpoints_list,
+            "design_patterns": ["REPOSITORY", "BUILDER", "OUTBOX"],
+            "event_broker": "kafka",
+            "event_topic_out": f"pe.com.{client_code}.transfers.v1",
+            "event_topic_in": f"pe.com.{client_code}.notifications.v1",
+        }
     elif any(k in req_lower for k in ["cliente", "customer", "usuario", "onboarding"]):
         domain_name = "clientes"
         entity_name = "Customer"

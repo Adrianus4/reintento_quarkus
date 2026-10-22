@@ -15,13 +15,18 @@ def extract_and_parse_json(text: str) -> Dict[str, Any]:
     if match:
         cleaned = match.group(1).strip()
     else:
-        # Find the first '{' and last '}'
-        start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            cleaned = cleaned[start : end + 1]
-        elif start != -1:
-            cleaned = cleaned[start:]
+        # Look for real JSON object root: a '{' followed by a quoted property name
+        json_obj_match = re.search(r'(\{\s*"[a-zA-Z0-9_\-]+"\s*:[\s\S]*\})', cleaned)
+        if json_obj_match:
+            cleaned = json_obj_match.group(1).strip()
+        else:
+            # Fallback only if no quoted key pattern found
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                cleaned = cleaned[start : end + 1]
+            elif start != -1:
+                cleaned = cleaned[start:]
 
     # 2. Try direct parsing first
     try:
@@ -30,7 +35,7 @@ def extract_and_parse_json(text: str) -> Dict[str, Any]:
         pass
 
     # 3. Clean trailing commas (e.g. ", }" or ", ]")
-    repaired = re.sub(r",\s*([\}\]])", r"\1", cleaned)
+    repaired = re.sub(r",\s*([\}\]])", r"", cleaned)
 
     try:
         return json.loads(repaired)
@@ -75,20 +80,14 @@ def _repair_truncated_json(text: str) -> str:
                 if stack and stack[-1] == "[":
                     stack.pop()
 
-    # If truncated inside a string, close quote
     if in_string:
         s += '"'
 
-    # Remove any trailing comma before closing
-    s = re.sub(r",\s*$", "", s)
-
-    # Close remaining brackets and braces in reverse order
     while stack:
-        opening = stack.pop()
-        if opening == "{":
+        opener = stack.pop()
+        if opener == "{":
             s += "}"
-        elif opening == "[":
+        elif opener == "[":
             s += "]"
 
     return s
-
