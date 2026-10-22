@@ -125,6 +125,10 @@ def setup_direct_key(
             is_connected = bool(conn_res)
             msg = "Conexión exitosa" if is_connected else f"Fallo de autenticación con {provider}"
 
+        # If client auto-discovered or refined the model_name (e.g. GeminiListModels), use it!
+        if hasattr(client, "model_name") and client.model_name:
+            model_name = client.model_name
+
         latency = int((time.time() - t0) * 1000)
 
         if not is_connected and not force:

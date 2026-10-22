@@ -185,7 +185,7 @@ export const AdminPanel: React.FC = () => {
   };
 
       const PROVIDER_MODELS: Record<string, string[]> = {
-    GEMINI: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'],
+    GEMINI: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'],
     DEEPSEEK: ['deepseek-chat', 'deepseek-coder'],
     OPENAI: ['gpt-4o', 'gpt-4o-mini'],
     ANTHROPIC: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
@@ -729,13 +729,24 @@ export const AdminPanel: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-bold text-gray-200">
-                    3. Modelo Sugerido para {vaultKeyProvider}
+                    3. Modelo (Opcional — Auto-detectado automáticamente)
                   </label>
-                  <span className="text-[10px] text-tcs-cyan font-mono">Personalizable</span>
+                  <span className="text-[10px] text-emerald-400 font-mono">No es obligatorio rellenar</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {(PROVIDER_MODELS[vaultKeyProvider] || ['gemini-1.5-flash']).map((m) => (
+                  <button
+                    type="button"
+                    onClick={() => setGatewayConfig({ ...gatewayConfig, model_name: '' })}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all ${
+                      !gatewayConfig.model_name
+                        ? 'bg-emerald-600/30 border border-emerald-400 text-emerald-300 font-bold'
+                        : 'bg-tcs-surface border border-tcs-border/60 text-tcs-muted hover:text-white'
+                    }`}
+                  >
+                    ✨ Auto-detectar de mi cuenta
+                  </button>
+                  {(PROVIDER_MODELS[vaultKeyProvider] || ['gemini-2.0-flash']).map((m) => (
                     <button
                       key={m}
                       type="button"
