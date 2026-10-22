@@ -1,6 +1,9 @@
+import io
 import json
-from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+import zipfile
+from typing import Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.api.deps import get_verified_user, get_optional_user, verify_client_access
 from app.core.database import get_db
@@ -245,6 +248,43 @@ def get_job(
 
     verify_client_access(job.client_code, user)
     return _format_job_response(job)
+
+
+@router.get("/jobs/{job_id}/download")
+def download_job_zip(
+    job_id: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Download the generated Quarkus microservice files directly as a ZIP archive."""
+    job = db.query(GenerationJob).filter(GenerationJob.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Generation job not found"
+        )
+
+    files_dict = json.loads(job.files_json) if job.files_json else {}
+    if not files_dict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El trabajo de generación no contiene archivos generados"
+        )
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file_path, content in files_dict.items():
+            clean_path = file_path.lstrip("/\\")
+            zf.writestr(clean_path, content)
+
+    zip_buffer.seek(0)
+    filename = f"{job.client_code}-quarkus-microservice.zip"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
 
 @router.patch("/jobs/{job_id}/files", response_model=JobResponse)

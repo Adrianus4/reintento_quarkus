@@ -345,6 +345,7 @@ export const api = {
       });
       return normalizeJob(res);
     },
+    getJobDownloadUrl: (jobId: string) => `http://localhost:8003/api/v1/orchestrator/jobs/${jobId}/download`,
   },
 
   // --- SANDBOX-VERIFIER-SERVICE (:8004) ---

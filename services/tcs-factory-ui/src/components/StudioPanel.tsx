@@ -148,6 +148,13 @@ export const StudioPanel: React.FC = () => {
     setEventTopicOut(`pe.com.${code}.events.v1`);
     setEventTopicIn(`pe.com.${code}.notifications.v1`);
     setActivePhase(1);
+    // Check if there is already a generated job for this client to restore state
+    api.orchestrator.listJobs().then((jobs: any[]) => {
+      const clientJob = jobs.find((j: any) => (j.client_code || j.client_id || '').toLowerCase() === code);
+      if (clientJob) {
+        setCurrentJob(clientJob);
+      }
+    }).catch(() => {});
     setError(null);
     setInferSuccessMessage(null);
   };
@@ -314,6 +321,10 @@ export const StudioPanel: React.FC = () => {
 
       setCurrentJob(job);
       setIsGenerating(false);
+      setTimeout(() => {
+        const el = document.getElementById('fabrication-success-card') || document.getElementById('generated-code-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
     } catch (err: any) {
       setError(err.message || 'Error al fabricar microservicio con agentes de IA');
       setIsGenerating(false);
@@ -1198,7 +1209,7 @@ export const StudioPanel: React.FC = () => {
                   entidades Panache, DTOs con validación, servicios transaccionales, controladores reactivos y pruebas @QuarkusTest.
                 </p>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-4">
                   <button
                     type="button"
                     onClick={handleStartGeneration}
@@ -1213,10 +1224,71 @@ export const StudioPanel: React.FC = () => {
                     ) : (
                       <>
                         <span className="text-xl">🚀</span>
-                        <span>Fabricar Microservicio Quarkus Completo con IA</span>
+                        <span>{currentJob ? '↻ Volver a Fabricar Microservicio con IA' : 'Fabricar Microservicio Quarkus Completo con IA'}</span>
                       </>
                     )}
                   </button>
+
+                  {/* Immediate Download & Success Card */}
+                  {currentJob && (
+                    <div id="fabrication-success-card" className="p-6 bg-gradient-to-br from-emerald-950/70 via-tcs-dark to-cyan-950/50 border border-emerald-500/60 rounded-2xl shadow-2xl space-y-4 animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-800/50 pb-3">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-3xl">🎉</span>
+                          <div>
+                            <h3 className="text-base font-extrabold text-white">¡Microservicio Quarkus Fabricado con Éxito!</h3>
+                            <p className="text-xs text-emerald-300 font-medium">
+                              Se generaron {Array.isArray(currentJob.files) ? currentJob.files.length : Object.keys(currentJob.files || {}).length} archivos listos para descargar, compilar y ejecutar.
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full font-mono text-xs font-bold self-start sm:self-auto">
+                          ✓ {currentJob.status || 'COMPLETED'}
+                        </span>
+                      </div>
+
+                      {/* Botones de Descarga Directa */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <a
+                          href={api.orchestrator.getJobDownloadUrl(currentJob.job_id || (currentJob as any).id)}
+                          download
+                          className="py-3 px-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.02]"
+                        >
+                          <span className="text-lg">📦</span>
+                          <span>Descargar Microservicio (.ZIP)</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsVerifierOpen(true)}
+                          className="py-3 px-5 bg-tcs-surface hover:bg-tcs-dark border border-tcs-cyan/60 text-tcs-cyan hover:text-white font-extrabold text-xs rounded-xl shadow flex items-center justify-center space-x-2 transition-all"
+                        >
+                          <span className="text-lg">🛡️</span>
+                          <span>Verificar en Sandbox & SHA-256</span>
+                        </button>
+                      </div>
+
+                      {/* Métricas del Proyecto */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-[11px] font-mono">
+                        <div className="p-2.5 bg-tcs-dark/80 rounded-xl border border-tcs-border/60">
+                          <span className="text-gray-400 block text-[10px]">Archivos:</span>
+                          <strong className="text-white">{Array.isArray(currentJob.files) ? currentJob.files.length : Object.keys(currentJob.files || {}).length} generados</strong>
+                        </div>
+                        <div className="p-2.5 bg-tcs-dark/80 rounded-xl border border-tcs-border/60">
+                          <span className="text-gray-400 block text-[10px]">Arquitectura:</span>
+                          <strong className="text-tcs-cyan">{(currentJob as any).architecture_style || archStyle}</strong>
+                        </div>
+                        <div className="p-2.5 bg-tcs-dark/80 rounded-xl border border-tcs-border/60">
+                          <span className="text-gray-400 block text-[10px]">Build & Java:</span>
+                          <strong className="text-amber-300">{buildTool.toUpperCase()} (Java {javaVersion})</strong>
+                        </div>
+                        <div className="p-2.5 bg-tcs-dark/80 rounded-xl border border-tcs-border/60">
+                          <span className="text-gray-400 block text-[10px]">Tokens / Duración:</span>
+                          <strong className="text-purple-300">{currentJob.metrics?.total_tokens || 0} tok / {currentJob.metrics?.duration_seconds || '0'}s</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1301,8 +1373,8 @@ export const StudioPanel: React.FC = () => {
       </div>
 
       {/* 4. Generated Code Viewer & Verifier (When Job Exists) */}
-      {currentJob && currentJob.files && currentJob.files.length > 0 && (
-        <div className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-4 animate-fadeIn">
+      {currentJob && currentJob.files && (Array.isArray(currentJob.files) ? currentJob.files.length > 0 : Object.keys(currentJob.files).length > 0) && (
+        <div id="generated-code-section" className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-4 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-tcs-border pb-4">
             <div>
               <div className="flex items-center space-x-2">
@@ -1329,7 +1401,7 @@ export const StudioPanel: React.FC = () => {
           </div>
 
           <CodeViewer
-            files={currentJob.files}
+            files={Array.isArray(currentJob.files) ? currentJob.files : Object.entries(currentJob.files).map(([p, cnt]) => ({ path: p, content: String(cnt) }))}
             onSaveFiles={handleSaveFiles}
             onVerifySandbox={() => setIsVerifierOpen(true)}
             isSaving={isSavingFiles}
@@ -1344,7 +1416,7 @@ export const StudioPanel: React.FC = () => {
           onClose={() => setIsVerifierOpen(false)}
           clientCode={currentJob.client_id || (currentJob as any).client_code || selectedClient}
           jobId={currentJob.job_id || (currentJob as any).id}
-          files={currentJob.files}
+          files={Array.isArray(currentJob.files) ? currentJob.files : Object.entries(currentJob.files).map(([p, cnt]) => ({ path: p, content: String(cnt) }))}
         />
       )}
     </div>
