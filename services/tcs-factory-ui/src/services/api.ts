@@ -203,6 +203,14 @@ export const api = {
         return { providers: {} };
       }
     },
+    deleteVaultKey: (provider: string) =>
+      request<any>(PORTS.ORCHESTRATOR, `/vault/keys/${provider.toLowerCase()}`, {
+        method: 'DELETE',
+      }),
+    clearAllVaultKeys: () =>
+      request<any>(PORTS.ORCHESTRATOR, '/vault/keys', {
+        method: 'DELETE',
+      }),
     setVaultKey: (data: { provider: string; api_key: string }) =>
       request<any>(PORTS.ORCHESTRATOR, '/vault/keys', {
         method: 'POST',

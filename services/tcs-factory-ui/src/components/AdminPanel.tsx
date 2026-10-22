@@ -156,7 +156,35 @@ export const AdminPanel: React.FC = () => {
   };
 
   // Direct API Key Setup
-  const handleDirectKeySetup = async (e: React.FormEvent) => {
+  const handleDeleteKey = async (provider: string) => {
+    if (!window.confirm(`¿Está seguro de eliminar la credencial de ${provider}?`)) return;
+    setLoading(true);
+    try {
+      await (api.orchestrator as any).deleteVaultKey(provider);
+      showFeedback('success', `API Key de ${provider} eliminada exitosamente.`);
+      await loadVaultAndGateway();
+    } catch (err: any) {
+      showFeedback('error', 'Error al eliminar credencial: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAllKeys = async () => {
+    if (!window.confirm('¿Está seguro de eliminar TODAS las API Keys configuradas?')) return;
+    setLoading(true);
+    try {
+      await (api.orchestrator as any).clearAllVaultKeys();
+      showFeedback('success', 'Todas las credenciales fueron eliminadas.');
+      await loadVaultAndGateway();
+    } catch (err: any) {
+      showFeedback('error', 'Error al limpiar credenciales: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+    const handleDirectKeySetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vaultApiKey) return;
     setLoading(true);
@@ -623,16 +651,27 @@ export const AdminPanel: React.FC = () => {
 
           {/* Claves Configuradas Activas */}
           <div className="bg-tcs-card border border-tcs-border rounded-2xl p-5 shadow space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Estado de Credenciales Almacenadas
-            </h4>
+            <div className="flex items-center justify-between pb-2 border-b border-tcs-border">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Estado de Credenciales Almacenadas
+              </h4>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleClearAllKeys}
+                className="text-[10px] text-rose-400 hover:text-rose-300 underline font-semibold"
+              >
+                Limpiar Todas las Claves
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
                 const info = vaultStatus[prov];
                 const isConf = info?.configured;
                 return (
-                  <div key={prov} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-2">
+                  <div key={prov} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-white">{prov}</span>
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
@@ -641,20 +680,41 @@ export const AdminPanel: React.FC = () => {
                             : 'bg-slate-900 text-tcs-muted border border-tcs-border'
                         }`}
                       >
-                        {isConf ? 'ACTIVO' : 'SIN LLAVE'}
+                        {isConf ? 'CONFIGURADO' : 'SIN LLAVE'}
                       </span>
                     </div>
                     {isConf && (
-                      <div className="flex items-center justify-between pt-1 border-t border-tcs-border/40">
-                        <span className="text-[10px] font-mono text-tcs-muted">{info?.masked_key || '••••••••'}</span>
-                        <button
-                          type="button"
-                          disabled={loading}
-                          onClick={() => handleTestKey(prov)}
-                          className="text-[10px] text-tcs-cyan hover:underline"
-                        >
-                          Probar
-                        </button>
+                      <div className="flex flex-col space-y-1.5 pt-1.5 border-t border-tcs-border/40">
+                        <span className="text-[10px] font-mono text-tcs-muted truncate">{info?.masked_key || '••••••••'}</span>
+                        <div className="flex items-center justify-between text-[10px] pt-1">
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => {
+                              setVaultKeyProvider(prov);
+                              showFeedback('success', `Pega la nueva API Key para ${prov} en el campo superior.`);
+                            }}
+                            className="text-amber-400 hover:underline font-semibold"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => handleTestKey(prov)}
+                            className="text-tcs-cyan hover:underline font-semibold"
+                          >
+                            🔌 Probar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => handleDeleteKey(prov)}
+                            className="text-rose-400 hover:underline font-semibold"
+                          >
+                            🗑️ Borrar
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

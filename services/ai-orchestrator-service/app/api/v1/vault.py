@@ -257,3 +257,48 @@ def test_vault_key_by_path(
         user=user,
         db=db
     )
+
+@router.delete("/keys/{provider}")
+def delete_vault_key(
+    provider: str,
+    user: dict = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Delete a stored API Key for a provider."""
+    provider_clean = provider.lower().strip()
+    cred = db.query(VaultCredential).filter(VaultCredential.provider == provider_clean).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail=f"No se encontró ninguna credencial para '{provider_clean}'.")
+
+    db.delete(cred)
+
+    # If active provider was this one, reset gateway config
+    from app.models.gateway_config import GatewayConfig
+    cfg = db.query(GatewayConfig).first()
+    if cfg and cfg.active_provider == provider_clean:
+        # Check if there is another credential available
+        other = db.query(VaultCredential).filter(VaultCredential.provider != provider_clean, VaultCredential.is_active == True).first()
+        if other:
+            cfg.active_provider = other.provider
+        else:
+            cfg.active_provider = "gemini"
+            cfg.model_name = "gemini-1.5-flash"
+
+    db.commit()
+    return {"success": True, "provider": provider_clean.upper(), "message": f"Credencial de {provider.upper()} eliminada exitosamente."}
+
+
+@router.delete("/keys")
+def clear_all_vault_keys(
+    user: dict = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Clear all stored API keys in the vault."""
+    db.query(VaultCredential).delete()
+    from app.models.gateway_config import GatewayConfig
+    cfg = db.query(GatewayConfig).first()
+    if cfg:
+        cfg.active_provider = "gemini"
+        cfg.model_name = "gemini-1.5-flash"
+    db.commit()
+    return {"success": True, "message": "Todas las credenciales fueron eliminadas de la bóveda."}
