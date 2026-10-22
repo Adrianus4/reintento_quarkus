@@ -231,6 +231,33 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleForceSave = async () => {
+    const key = vaultApiKey.trim();
+    if (!key) return;
+    setLoading(true);
+    setTestResult(null);
+    try {
+      const res = await (api.orchestrator as any).setupDirectKey({
+        api_key: key,
+        model_name: gatewayConfig.model_name || undefined,
+        provider: vaultKeyProvider.toLowerCase(),
+        force: true,
+      });
+      if (res.success) {
+        showFeedback('success', 'API Key guardada y activada forzosamente.');
+        setTestResult({ provider: res.provider, status: 'OK', message: `Activada forzosamente para ${res.provider} (${res.masked_key}).` });
+        setVaultApiKey('');
+        await loadVaultAndGateway();
+      } else {
+        showFeedback('error', res.message || 'Error al guardar.');
+      }
+    } catch (err: any) {
+      showFeedback('error', 'Error al forzar guardado: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveVaultKey = handleDirectKeySetup;
 
   const handleTestKey = async (provider: string) => {
@@ -733,13 +760,24 @@ export const AdminPanel: React.FC = () => {
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={loading || !vaultApiKey}
-                className="w-full py-2.5 bg-gradient-to-r from-tcs-blue to-tcs-accent hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-extrabold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
-              >
-                <span>{loading ? '⌛ Validando y Activando...' : '🚀 Validar y Activar API Key'}</span>
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="submit"
+                  disabled={loading || !vaultApiKey}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-tcs-blue to-tcs-accent hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-extrabold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <span>{loading ? '⌛ Validando...' : '🚀 Validar y Activar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleForceSave}
+                  disabled={loading || !vaultApiKey}
+                  title="Guarda la API Key directamente en la base de datos sin requerir prueba de conexión exitosa"
+                  className="px-4 py-2.5 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-600/60 text-amber-200 text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center space-x-1"
+                >
+                  <span>💾 Guardar Directo (Sin Test)</span>
+                </button>
+              </div>
             </form>
           </div>
 

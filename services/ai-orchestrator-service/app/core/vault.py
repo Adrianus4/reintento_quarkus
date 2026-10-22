@@ -18,12 +18,15 @@ def encrypt_secret(plain_text: str) -> str:
 
 
 def decrypt_secret(cipher_text: str) -> str:
-    """Decrypt a Fernet cipher text back to plain text."""
+    """Decrypt a Fernet cipher text back to plain text with safe fallback."""
     if not cipher_text:
         return ""
-    fernet = _get_fernet()
-    decrypted = fernet.decrypt(cipher_text.encode("utf-8"))
-    return decrypted.decode("utf-8")
+    try:
+        fernet = _get_fernet()
+        decrypted = fernet.decrypt(cipher_text.encode("utf-8"))
+        return decrypted.decode("utf-8")
+    except Exception:
+        return cipher_text
 
 
 def mask_secret(plain_text: str) -> str:

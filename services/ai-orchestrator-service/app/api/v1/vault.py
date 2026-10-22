@@ -93,6 +93,19 @@ def setup_direct_key(
             provider = "openai"
             model_name = model_name or "gpt-4o"
 
+    force = bool(payload.get("force", False))
+
+    # Strip accidental quotes or Bearer prefix without touching key payload
+    changed = True
+    while changed:
+        changed = False
+        if (api_key.startswith('"') and api_key.endswith('"')) or (api_key.startswith("'") and api_key.endswith("'")):
+            api_key = api_key[1:-1].strip()
+            changed = True
+        if api_key.lower().startswith("bearer "):
+            api_key = api_key[7:].strip()
+            changed = True
+
     t0 = time.time()
     try:
         if provider == "gemini":
@@ -114,13 +127,14 @@ def setup_direct_key(
 
         latency = int((time.time() - t0) * 1000)
 
-        if not is_connected:
+        if not is_connected and not force:
             return {
                 "success": False,
                 "provider": provider.upper(),
                 "model_name": model_name,
                 "latency_ms": latency,
                 "message": msg,
+                "can_force": True,
             }
 
         encrypted = encrypt_secret(api_key)
