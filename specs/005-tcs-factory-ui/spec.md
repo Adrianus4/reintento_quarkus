@@ -36,9 +36,17 @@ Implementar la aplicación web SPA **`tcs-factory-ui`** (Puerto `5173`) construi
   - Módulo "Gateway de IA": selector de proveedor activo e input directo del modelo LLM (`model_name`), eliminando tiers o modos de consumo artificiales.
   - Módulo "Clientes": registro de perfiles, directivas arquitectónicas y contratos OpenAPI.
 
-### User Story 3 - Asistente Interactivo con Doble Entrada: Requerimiento Libre o Blueprint JSON (Priority: P1)
+### User Story 3 - Taller Guiado en 7 Fases con IA Copiloto y Fabricación Final (Priority: P1)
 * **Como**: Desarrollador de TCS.
-* **Quiero**: Poder redactar libremente mi requerimiento para moldearlo en las fases, o ingestar un Blueprint JSON predefinido para autorellenar y editar todos los pasos antes de la generación:
+* **Quiero**: Guiar y refinar el microservicio fase por fase (1 al 7), pudiendo escoger el stack, la herramienta de compilación (Maven/Gradle), el arquetipo, los patrones de diseño y las convenciones, con sugerencias de IA en cada fase, visibilizando los cambios en vivo y ejecutando la fabricación del microservicio únicamente al final en la Fase 7:
+  - **Fase 1: Stack & Build Tool**: Selección de Maven (`pom.xml` + `mvnw`) vs Gradle (`build.gradle` + `gradlew`), Java 21 vs 17 LTS, versión de Quarkus (3.15.1), packaging JVM vs Native, Artifact ID y Package Prefix.
+  - **Fase 2: Arquetipo & Patrones**: Selector de Hexagonal, Clean, Layered o EDA; selección de patrones (Saga, Outbox, Builder, Repository, Strategy, Factory); estilo de variables (`camelCase`) y sufijos (`UseCase`, `Port`, `Adapter`).
+  - **Fase 3: Seguridad & Tokens**: SmallRye JWT, OIDC, mTLS, Roles RBAC (`ADMIN, OPERATOR, AUDITOR`) y gestión de secretos (Azure Key Vault / HashiCorp).
+  - **Fase 4: Persistencia & Entidades**: Panache ORM con SQL Server (BCP), PostgreSQL, MongoDB o 100% Stateless; constructor interactivo de entidades y campos tipados (`UUID`, `BigDecimal`, `LocalDateTime`).
+  - **Fase 5: APIs & Endpoints**: RESTEasy Reactive + Mutiny, SmallRye OpenAPI / Swagger y constructor interactivo de endpoints con métodos HTTP y códigos de respuesta.
+  - **Fase 6: Eventos & Kafka**: SmallRye Reactive Messaging, Apache Kafka, Azure Service Bus con tópicos entrantes y salientes.
+  - **Fase 7: Lógica & Fabricación Final**: Diagrama visual del flujo lógico de negocio, semáforo de cumplimiento de gobernanza BCP y el botón final: `🚀 Fabricar Microservicio Quarkus Completo con IA`.
+  - **Asistencia IA por Fase**: Botón `✨ Sugerir con IA para esta Fase` en cada paso para autocompletar recomendaciones técnicas sin quitar el control al desarrollador.
   - **Doble Entrada**: Alternar entre "Diseñar por Fases" e "Ingestar Blueprint JSON" (con plantillas IBK y BCP o subida de archivo `.json`).
   - **Inputs de Proyecto**: Selector de cliente corporativo (con soporte para `ibk` y `bcp`), nombre del microservicio (`artifactId`), prefijo de paquete base editable (`package_prefix`, ej: `pe.com.interbank`), puerto HTTP y versión de Java (21 / 17).
   - **Inputs de Arquitectura**: Selección de patrón (Hexagonal, Clean Layered, Event-Driven, BFF, gRPC) y caja de texto para directivas arquitectónicas especiales.

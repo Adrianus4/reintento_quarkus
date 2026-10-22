@@ -177,6 +177,11 @@ export interface MicroserviceConfig {
   http_port: number;
   java_version: string;
   quarkus_version: string;
+  build_tool?: string;
+  design_patterns?: string[];
+  naming_conventions?: Record<string, any>;
+  event_broker?: string;
+  channels?: Array<{ name: string; type: 'incoming' | 'outgoing'; topic: string }>;
   extensions: string[];
   custom_extensions?: string[];
   custom_properties?: string;

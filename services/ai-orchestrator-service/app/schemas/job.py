@@ -27,6 +27,12 @@ class JobCreateRequest(BaseModel):
     artifact_id: Optional[str] = "generated-microservice"
     http_port: Optional[int] = 8080
     java_version: Optional[str] = "21"
+    quarkus_version: Optional[str] = "3.15.1"
+    build_tool: Optional[str] = "maven"
+    design_patterns: Optional[List[str]] = Field(default_factory=list)
+    naming_conventions: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    event_broker: Optional[str] = "none"
+    channels: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     extensions: Optional[List[str]] = Field(default_factory=list)
     custom_extensions: Optional[List[str]] = Field(default_factory=list)
     custom_properties: Optional[Union[Dict[str, str], str]] = None

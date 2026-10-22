@@ -256,6 +256,12 @@ export const api = {
       artifact_id?: string;
       http_port?: number;
       java_version?: string;
+      quarkus_version?: string;
+      build_tool?: string;
+      design_patterns?: string[];
+      naming_conventions?: any;
+      event_broker?: string;
+      channels?: any[];
       extensions?: string[];
       custom_extensions?: string[];
       custom_properties?: any;
@@ -280,6 +286,12 @@ export const api = {
         artifact_id: data.artifact_id || undefined,
         http_port: data.http_port || 8080,
         java_version: data.java_version || undefined,
+        quarkus_version: data.quarkus_version || undefined,
+        build_tool: data.build_tool || 'maven',
+        design_patterns: data.design_patterns || [],
+        naming_conventions: data.naming_conventions || {},
+        event_broker: data.event_broker || 'none',
+        channels: data.channels || [],
         extensions: data.extensions || [],
         custom_extensions: data.custom_extensions || [],
         custom_properties: data.custom_properties || undefined,

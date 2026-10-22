@@ -70,8 +70,8 @@ Implementar el microservicio **`ai-orchestrator-service`** (Puerto `8003`) para 
 
 * **Como**: Desarrollador de TCS autorizado para un cliente (ej. `ibk`, `bcp`).
 * **Quiero**: Ingresar libremente mis requerimientos y parametrizar cada dimensión técnica del microservicio mediante campos de entrada (*inputs*) editables:
-  - **Inputs de Proyecto**: Cliente (`client_code`), nombre del microservicio (`artifact_id`), prefijo de paquete (`package_prefix`), puerto HTTP (`http_port`) y versión Java (`java_version`).
-  - **Inputs de Arquitectura**: Patrón arquitectónico (`architecture_style`) y notas/reglas de arquitectura personalizadas (`custom_architecture_notes`).
+  - **Inputs de Proyecto & Herramienta de Construcción**: Cliente (`client_code`), herramienta de compilación (`build_tool`: Maven vs Gradle), nombre del microservicio (`artifact_id`), prefijo de paquete (`package_prefix`), puerto HTTP (`http_port`), versión Java (`java_version`: 21 / 17 LTS) y versión Quarkus (`quarkus_version`: 3.15.1).
+  - **Inputs de Arquitectura & Patrones de Diseño**: Arquetipo (`architecture_style`: Hexagonal, Clean, Layered, EDA), patrones seleccionables (`design_patterns`: Repository, Builder, Saga, Outbox, Strategy, Factory) y convenciones de código (`naming_conventions`: camelCase, PascalCase, sufijos UseCase, Port, Adapter).
   - **Inputs de Seguridad**: Mecanismo de autenticación (`security_option`), emisor JWT/OIDC (`jwt_issuer`) y roles autorizados (`security_roles`).
   - **Inputs de Endpoints**: Lista de endpoints HTTP personalizados (`custom_endpoints`) con método, ruta, código de estado y descripción.
   - **Inputs de Persistencia**: Motor de base de datos (`database_option`), nombre de base de datos (`database_name`) y definición dinámica de entidades y campos tipados (`entities`).

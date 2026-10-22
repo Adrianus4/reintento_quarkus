@@ -22,46 +22,101 @@ export const StudioPanel: React.FC = () => {
   const [contracts, setContracts] = useState<OpenApiSpecSummary[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string>('');
 
-  // Primary Requirement Prompt (Clean by default)
-  const [requirementPrompt, setRequirementPrompt] = useState<string>('');
+  // 7-Phase Stepper: 1 to 7
+  const [activePhase, setActivePhase] = useState<number>(1);
 
-  // Toggle for Advanced Technical Fine-Tuning
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
-  const [advancedTab, setAdvancedTab] = useState<'identity' | 'arch' | 'security' | 'database' | 'endpoints' | 'extensions'>('identity');
-
-  // --- 1. Project Identity Inputs ---
-  const [artifactId, setArtifactId] = useState<string>('');
-  const [packagePrefix, setPackagePrefix] = useState<string>('');
-  const [httpPort, setHttpPort] = useState<number>(8080);
+  // --- FASE 1: Identidad & Stack Base ---
+  const [buildTool, setBuildTool] = useState<'maven' | 'gradle'>('maven');
   const [javaVersion, setJavaVersion] = useState<string>('21');
-  const [quarkusVersion] = useState<string>('3.15.1');
+  const [quarkusVersion, setQuarkusVersion] = useState<string>('3.15.1');
+  const [artifactId, setArtifactId] = useState<string>('bcp-loans-service');
+  const [packagePrefix, setPackagePrefix] = useState<string>('pe.com.bcp');
+  const [httpPort, setHttpPort] = useState<number>(8080);
+  const [packagingType, setPackagingType] = useState<'jvm' | 'native'>('jvm');
 
-  // --- 2. Architecture Inputs ---
+  // General requirement prompt (guides AI suggestions)
+  const [requirementPrompt, setRequirementPrompt] = useState<string>(
+    'Microservicio para originación de préstamos con evaluación crediticia, cálculo de cronograma y notificación de eventos.'
+  );
+
+  // --- FASE 2: Arquetipo, Patrones de Diseño & Convenciones ---
   const [archStyle, setArchStyle] = useState<string>('Hexagonal');
-  const [customArchNotes, setCustomArchNotes] = useState<string>('');
+  const [customArchNotes, setCustomArchNotes] = useState<string>(
+    'Separación estricta entre puertos in/out, adaptadores REST e inmutabilidad en modelos de dominio.'
+  );
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([
+    'REPOSITORY',
+    'BUILDER',
+    'OUTBOX',
+  ]);
+  const [variableNamingStyle, setVariableNamingStyle] = useState<'camelCase' | 'snake_case'>('camelCase');
+  const [useCaseSuffix, setUseCaseSuffix] = useState<string>('UseCase');
+  const [portSuffix, setPortSuffix] = useState<string>('Port');
+  const [adapterSuffix, setAdapterSuffix] = useState<string>('Adapter');
+  const [exceptionHandlingStrategy, setExceptionHandlingStrategy] = useState<string>('Global ServerExceptionMapper (RFC-7807)');
 
-  // --- 3. Security Inputs ---
+  // --- FASE 3: Seguridad & Gobernanza ---
   const [securityOption, setSecurityOption] = useState<string>('JWT');
-  const [jwtIssuer, setJwtIssuer] = useState<string>('');
-  const [securityRoles, setSecurityRoles] = useState<string>('ADMIN, USER');
+  const [jwtIssuer, setJwtIssuer] = useState<string>('https://auth.viabcp.com');
+  const [securityRoles, setSecurityRoles] = useState<string>('ADMIN, OPERATOR, AUDITOR');
+  const [vaultProvider, setVaultProvider] = useState<string>('Azure Key Vault');
 
-  // --- 4. Communication & Custom Endpoints Inputs ---
-  const [commProtocol, setCommProtocol] = useState<string>('REST');
-  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([]);
-
-  // --- 5. Database & Editable Entities Inputs ---
+  // --- FASE 4: Persistencia & Modelado de Entidades ---
   const [databaseOption, setDatabaseOption] = useState<string>('POSTGRESQL_PANACHE');
-  const [databaseName, setDatabaseName] = useState<string>('');
-  const [entities, setEntities] = useState<EntityDefinition[]>([]);
+  const [databaseName, setDatabaseName] = useState<string>('bcp_loans_db');
+  const [entities, setEntities] = useState<EntityDefinition[]>([
+    {
+      name: 'Loan',
+      tableName: 'loans',
+      fields: [
+        { name: 'id', type: 'UUID', required: true, isId: true },
+        { name: 'applicantDni', type: 'String', required: true },
+        { name: 'amount', type: 'BigDecimal', required: true },
+        { name: 'interestRate', type: 'BigDecimal', required: true },
+        { name: 'termMonths', type: 'Integer', required: true },
+        { name: 'status', type: 'String', required: true },
+        { name: 'createdAt', type: 'LocalDateTime', required: true },
+      ],
+    },
+  ]);
 
-  // --- 6. Quarkus Extensions & Custom Properties Inputs ---
+  // --- FASE 5: Contratos de APIs & Endpoints Reactivos ---
+  const [commProtocol, setCommProtocol] = useState<string>('REST_REACTIVE');
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([
+    {
+      method: 'POST',
+      path: '/api/v1/loans',
+      summary: 'Crear solicitud de préstamo con evaluación crediticia y emisión de evento',
+    },
+    {
+      method: 'GET',
+      path: '/api/v1/loans/{id}',
+      summary: 'Consultar estado y detalle de préstamo por identificador',
+    },
+    {
+      method: 'GET',
+      path: '/api/v1/loans/applicant/{dni}',
+      summary: 'Consultar préstamos activos asociados al DNI del solicitante',
+    },
+  ]);
+
+  // --- FASE 6: Eventos & Comunicación Asíncrona ---
+  const [eventBroker, setEventBroker] = useState<'kafka' | 'service_bus' | 'none'>('kafka');
+  const [eventTopicOut, setEventTopicOut] = useState<string>('pe.com.bcp.loans.events.v1');
+  const [eventTopicIn, setEventTopicIn] = useState<string>('pe.com.bcp.scoring.events.v1');
+
+  // Quarkus Extensions
   const [selectedExtensions, setSelectedExtensions] = useState<string[]>([
     'quarkus-resteasy-reactive-jackson',
     'quarkus-smallrye-openapi',
     'quarkus-hibernate-validator',
+    'quarkus-smallrye-health',
+    'quarkus-micrometer-registry-prometheus',
   ]);
-  const [customExtensionsText, setCustomExtensionsText] = useState<string>('');
-  const [customPropertiesText, setCustomPropertiesText] = useState<string>('');
+  const [customExtensionsText, setCustomExtensionsText] = useState<string>('quarkus-smallrye-fault-tolerance');
+  const [customPropertiesText, setCustomPropertiesText] = useState<string>(
+    'bcp.loans.approval-limit=100000.00\nbcp.audit.async-logging=true\nbcp.idempotency.ttl-seconds=3600'
+  );
 
   // Execution & Job State
   const [currentJob, setCurrentJob] = useState<OrchestrationJob | null>(null);
@@ -93,27 +148,21 @@ export const StudioPanel: React.FC = () => {
     fetchAuthorizedClients();
   }, [user]);
 
-  // When a user selects a client card
+  // Select Client
   const handleSelectClient = (client: ClientProfile) => {
     setActiveClient(client);
     const code = (client.code || client.client_id || '').toLowerCase();
     setSelectedClient(code);
     setPackagePrefix(client.package_prefix || `pe.com.${code}`);
     setJavaVersion(client.java_version || '21');
-    setArtifactId(`${code}-nuevo-servicio`);
-    setDatabaseName(`${code}_db`);
-    setJwtIssuer(`https://auth.${code}.com`);
-
-    // Start with a clean, blank slate
-    setRequirementPrompt('');
-    setEntities([]);
-    setCustomEndpoints([]);
-    setCustomArchNotes('');
-    setCustomPropertiesText('');
-    setCurrentJob(null);
+    setArtifactId(`${code}-loans-service`);
+    setDatabaseName(`${code}_loans_db`);
+    setJwtIssuer(`https://auth.via${code}.com`);
+    setActivePhase(1);
     setError(null);
   };
 
+  // Reset to clean blank slate
   const handleResetToBlank = () => {
     const code = selectedClient || 'bcp';
     setArtifactId(`${code}-nuevo-servicio`);
@@ -122,32 +171,36 @@ export const StudioPanel: React.FC = () => {
     setCustomEndpoints([]);
     setCustomArchNotes('');
     setCustomPropertiesText('');
+    setSelectedPatterns(['REPOSITORY']);
+    setEventBroker('none');
     setCurrentJob(null);
     setError(null);
+    setActivePhase(1);
   };
 
+  // Load Reference BCP Sample
   const handleLoadBcpSample = () => {
+    setBuildTool('maven');
+    setJavaVersion('21');
+    setQuarkusVersion('3.15.1');
     setArtifactId('bcp-transfers-service');
     setPackagePrefix('pe.com.bcp');
     setDatabaseName('bcp_transfers_db');
     setJwtIssuer('https://auth.viabcp.com');
-    setJavaVersion('21');
     setArchStyle('Hexagonal');
-    setCustomArchNotes(
-      'Arquitectura hexagonal bancaria para BCP con separación de puertos/adaptadores y trazabilidad transaccional.'
-    );
+    setSelectedPatterns(['REPOSITORY', 'BUILDER', 'OUTBOX', 'SAGA']);
     setRequirementPrompt(
       'Implementar microservicio de transferencias bancarias y gestión de cuentas para BCP con validación de saldos, registro de auditoría, control de idempotencia y persistencia transaccional ACID.'
     );
+    setCustomArchNotes('Arquitectura hexagonal bancaria para BCP con separación estricta de puertos/adaptadores y trazabilidad transaccional.');
     setEntities([
       {
         name: 'Transfer',
         tableName: 'transfers',
         fields: [
-          { name: 'id', type: 'String', required: true, isId: true },
+          { name: 'id', type: 'UUID', required: true, isId: true },
           { name: 'sourceAccount', type: 'String', required: true },
           { name: 'destinationAccount', type: 'String', required: true },
-          { name: 'destinationBankCode', type: 'String', required: true },
           { name: 'amount', type: 'BigDecimal', required: true },
           { name: 'currency', type: 'String', required: true },
           { name: 'status', type: 'String', required: true },
@@ -156,50 +209,67 @@ export const StudioPanel: React.FC = () => {
       },
     ]);
     setCustomEndpoints([
-      {
-        method: 'POST',
-        path: '/api/v1/transfers',
-        summary: 'Ejecutar transferencia inmediata con validación de saldo',
-      },
-      {
-        method: 'GET',
-        path: '/api/v1/transfers/{id}',
-        summary: 'Consultar estado y detalle de transferencia por UUID',
-      },
+      { method: 'POST', path: '/api/v1/transfers', summary: 'Ejecutar transferencia inmediata con validación de saldo' },
+      { method: 'GET', path: '/api/v1/transfers/{id}', summary: 'Consultar estado y detalle de transferencia por UUID' },
     ]);
+    setEventBroker('kafka');
+    setEventTopicOut('pe.com.bcp.transfers.events.v1');
   };
 
-  // Load OpenAPI contracts for the selected client
-  useEffect(() => {
-    const fetchContracts = async () => {
-      if (!selectedClient) {
-        setContracts([]);
-        return;
-      }
-      try {
-        const cts = await api.governance.listContracts(selectedClient);
-        setContracts(cts);
-        if (cts.length > 0) {
-          setSelectedContractId(cts[0].id);
-        } else {
-          setSelectedContractId('');
-        }
-      } catch (err) {
-        setContracts([]);
-      }
-    };
+  // AI Suggestion Handler for Current Phase
+  const handleAiSuggestCurrentPhase = () => {
+    if (activePhase === 1) {
+      setBuildTool('maven');
+      setJavaVersion('21');
+      setQuarkusVersion('3.15.1');
+      setPackagingType('jvm');
+      setArtifactId(`${selectedClient}-service`);
+    } else if (activePhase === 2) {
+      setArchStyle('Hexagonal');
+      setSelectedPatterns(['REPOSITORY', 'BUILDER', 'OUTBOX', 'STRATEGY']);
+      setVariableNamingStyle('camelCase');
+      setUseCaseSuffix('UseCase');
+      setPortSuffix('Port');
+      setAdapterSuffix('Adapter');
+      setExceptionHandlingStrategy('Global ServerExceptionMapper (RFC-7807)');
+    } else if (activePhase === 3) {
+      setSecurityOption('JWT');
+      setJwtIssuer(`https://auth.via${selectedClient}.com`);
+      setSecurityRoles('ADMIN, OPERATOR, AUDITOR');
+      setVaultProvider('Azure Key Vault');
+    } else if (activePhase === 4) {
+      setDatabaseOption('POSTGRESQL_PANACHE');
+      setDatabaseName(`${selectedClient}_service_db`);
+      setEntities([
+        {
+          name: 'Operation',
+          tableName: 'operations',
+          fields: [
+            { name: 'id', type: 'UUID', required: true, isId: true },
+            { name: 'code', type: 'String', required: true },
+            { name: 'amount', type: 'BigDecimal', required: true },
+            { name: 'status', type: 'String', required: true },
+            { name: 'timestamp', type: 'LocalDateTime', required: true },
+          ],
+        },
+      ]);
+    } else if (activePhase === 5) {
+      setCommProtocol('REST_REACTIVE');
+      setCustomEndpoints([
+        { method: 'POST', path: `/api/v1/${selectedClient}-operations`, summary: 'Crear operación con validación y emisión de eventos' },
+        { method: 'GET', path: `/api/v1/${selectedClient}-operations/{id}`, summary: 'Consultar operación por UUID' },
+      ]);
+    } else if (activePhase === 6) {
+      setEventBroker('kafka');
+      setEventTopicOut(`pe.com.${selectedClient}.operations.events.v1`);
+      setEventTopicIn(`pe.com.${selectedClient}.notifications.events.v1`);
+    }
+  };
 
-    fetchContracts();
-  }, [selectedClient]);
-
-  // Main Generation Handler (Prompt-Driven)
+  // Final Action: Fabricate Microservice with LangGraph
   const handleStartGeneration = async () => {
     if (!selectedClient) {
-      setError('Seleccione una cuenta corporativa de cliente (ej. BCP)');
-      return;
-    }
-    if (!requirementPrompt.trim()) {
-      setError('Por favor escribe el requerimiento o descripción del microservicio que deseas crear.');
+      setError('Seleccione una cuenta de cliente');
       return;
     }
 
@@ -207,7 +277,6 @@ export const StudioPanel: React.FC = () => {
     setIsGenerating(true);
     setCurrentJob(null);
 
-    // Parse custom extensions
     const extraExtensions = customExtensionsText
       .split(/[\n,]+/)
       .map((s) => s.trim())
@@ -225,10 +294,10 @@ export const StudioPanel: React.FC = () => {
     try {
       const job = await api.orchestrator.createJob({
         client_code: selectedClient,
-        raw_requirement: requirementPrompt,
-        requirements: requirementPrompt,
+        raw_requirement: requirementPrompt || 'Microservicio empresarial Quarkus con arquitectura limpia y gobernanza BCP',
+        requirements: requirementPrompt || 'Microservicio empresarial Quarkus con arquitectura limpia y gobernanza BCP',
         architecture_style: archStyle,
-        custom_architecture_notes: customArchNotes,
+        custom_architecture_notes: `${customArchNotes} | Patrones: ${selectedPatterns.join(', ')} | Naming: ${variableNamingStyle} | UseCase: ${useCaseSuffix} | ExceptionMapper: ${exceptionHandlingStrategy}`,
         security_option: securityOption,
         jwt_issuer: jwtIssuer,
         security_roles: rolesArray,
@@ -240,17 +309,30 @@ export const StudioPanel: React.FC = () => {
         artifact_id: artifactId || `${selectedClient}-service`,
         http_port: httpPort,
         java_version: javaVersion,
+        quarkus_version: quarkusVersion,
+        build_tool: buildTool,
+        design_patterns: selectedPatterns,
+        naming_conventions: {
+          variable: variableNamingStyle,
+          useCaseSuffix,
+          portSuffix,
+          adapterSuffix,
+        },
+        event_broker: eventBroker,
+        channels: eventBroker !== 'none' ? [
+          { name: 'outgoing-events', type: 'outgoing', topic: eventTopicOut },
+          { name: 'incoming-events', type: 'incoming', topic: eventTopicIn },
+        ] : [],
         extensions: mergedExtensions,
         custom_extensions: extraExtensions,
         custom_properties: customPropertiesText,
         entities: entities,
-        contract_id: selectedContractId || undefined,
       });
 
       setCurrentJob(job);
       setIsGenerating(false);
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar la generación con agentes de IA');
+      setError(err.message || 'Error al fabricar microservicio con agentes de IA');
       setIsGenerating(false);
     }
   };
@@ -269,7 +351,7 @@ export const StudioPanel: React.FC = () => {
     }
   };
 
-  // Helper for adding entity
+  // Add entity
   const handleAddEntity = () => {
     const newName = `Entity${entities.length + 1}`;
     setEntities([
@@ -278,28 +360,38 @@ export const StudioPanel: React.FC = () => {
         name: newName,
         tableName: `${newName.toLowerCase()}s`,
         fields: [
-          { name: 'id', type: 'String', required: true, isId: true },
+          { name: 'id', type: 'UUID', required: true, isId: true },
           { name: 'name', type: 'String', required: true },
           { name: 'status', type: 'String', required: true },
+          { name: 'createdAt', type: 'LocalDateTime', required: true },
         ],
       },
     ]);
   };
 
-  // Helper for adding endpoint
+  // Add endpoint
   const handleAddEndpoint = () => {
     setCustomEndpoints([
       ...customEndpoints,
       {
-        method: 'GET',
-        path: `/api/v1/resource-${customEndpoints.length + 1}`,
-        summary: 'Operación REST generada',
+        method: 'POST',
+        path: `/api/v1/operation-${customEndpoints.length + 1}`,
+        summary: 'Operación transaccional con validación',
       },
     ]);
   };
 
+  // Toggle pattern
+  const togglePattern = (pattern: string) => {
+    if (selectedPatterns.includes(pattern)) {
+      setSelectedPatterns(selectedPatterns.filter((p) => p !== pattern));
+    } else {
+      setSelectedPatterns([...selectedPatterns, pattern]);
+    }
+  };
+
   // -------------------------------------------------------------
-  // STEP 0: If NO client is selected, show Client Selector Cards
+  // PANTALLA 0: Si no hay cliente seleccionado, mostrar Cards
   // -------------------------------------------------------------
   if (!activeClient) {
     return (
@@ -312,26 +404,26 @@ export const StudioPanel: React.FC = () => {
     );
   }
 
-  // -------------------------------------------------------------
-  // STEP 1: Workspace Studio with Active Client
-  // -------------------------------------------------------------
   const isBcp = selectedClient === 'bcp';
 
+  const PHASES = [
+    { num: 1, title: 'Stack & Build Tool', desc: 'Maven/Gradle, Java 21, Quarkus' },
+    { num: 2, title: 'Arquetipo & Patrones', desc: 'Hexagonal, Clean, Saga, Outbox' },
+    { num: 3, title: 'Seguridad & Tokens', desc: 'SmallRye JWT, RBAC, Key Vault' },
+    { num: 4, title: 'Persistencia & Entidades', desc: 'Panache ORM, SQL Server / Postgres' },
+    { num: 5, title: 'APIs & Endpoints', desc: 'RESTEasy Reactive, OpenAPI, Swagger' },
+    { num: 6, title: 'Eventos & Kafka', desc: 'Reactive Messaging, Outbox Tópicos' },
+    { num: 7, title: 'Lógica & Fabricación', desc: 'Visualizar flujo y generar código' },
+  ];
+
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* 1. Active Client Corporate Banner & Quick Switcher */}
-      <div className="bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border border-tcs-border rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl relative overflow-hidden">
-        <div className="flex items-center space-x-4 relative z-10">
+    <div className="space-y-6 animate-fadeIn pb-12">
+      {/* 1. Header con Cuenta de Cliente y Acciones Rápidas */}
+      <div className="bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border border-tcs-border rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center space-x-4">
           {isBcp ? (
             <div className="w-16 h-16 rounded-2xl bg-[#002A8F] p-2 flex items-center justify-center shadow-lg border border-blue-400/30 shrink-0">
-              <img
-                src="/bcp-logo.png"
-                alt="BCP Logo"
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+              <img src="/bcp-logo.png" alt="BCP Logo" className="w-full h-full object-contain" />
             </div>
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-tcs-blue/30 to-tcs-navy border border-tcs-border flex items-center justify-center text-tcs-cyan font-extrabold text-lg shrink-0">
@@ -351,16 +443,18 @@ export const StudioPanel: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-mono text-tcs-muted">
               <span className="text-tcs-cyan font-semibold">{packagePrefix}</span>
               <span>•</span>
-              <span className="text-white/80">Java {javaVersion}</span>
+              <span className="text-white">Build: {buildTool.toUpperCase()}</span>
               <span>•</span>
-              <span className="text-white/80">Quarkus {quarkusVersion}</span>
+              <span className="text-white">Java {javaVersion}</span>
               <span>•</span>
-              <span className="text-amber-400/90 font-sans">Gobernanza Activa</span>
+              <span className="text-white">Quarkus {quarkusVersion}</span>
+              <span>•</span>
+              <span className="text-amber-400/90 font-sans">Gobernanza BCP Activa</span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 relative z-10">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveClient(null)}
@@ -380,7 +474,7 @@ export const StudioPanel: React.FC = () => {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span>✨ Nuevo Pedido (En blanco)</span>
+            <span>✨ Empezar en Blanco</span>
           </button>
 
           {isBcp && (
@@ -402,393 +496,759 @@ export const StudioPanel: React.FC = () => {
         </div>
       )}
 
-      {/* 2. PROMPT-FIRST REQUIREMENT BOX (THE HEART OF THE STUDIO) */}
-      <div className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-tcs-border/60 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-tcs-cyan animate-pulse"></span>
-              <span>Especificación del Microservicio Quarkus</span>
-            </h3>
-            <p className="text-xs text-tcs-muted mt-0.5">
-              Describe en lenguaje natural tu microservicio. Los agentes de IA de TCS diseñarán el Blueprint,
-              entidades, endpoints REST, dependencias y pruebas @QuarkusTest respetando las directivas de {activeClient.name}.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            className="text-xs text-tcs-cyan hover:underline flex items-center space-x-1 font-semibold"
-          >
-            <span>⚙️ {showAdvancedSettings ? 'Ocultar Ajustes Técnicos' : 'Ajustes Técnicos Avanzados (Opcional)'}</span>
-          </button>
+      {/* 2. Interactive 7-Phase Stepper Navigator */}
+      <div className="bg-tcs-card border border-tcs-border rounded-2xl p-4 shadow-xl">
+        <div className="text-xs font-bold uppercase tracking-wider text-tcs-muted mb-3 px-1 flex items-center justify-between">
+          <span>Taller de Arquitectura Quarkus — Fases de Configuración (1 al 7)</span>
+          <span className="text-tcs-cyan font-mono font-bold">Fase {activePhase} de 7</span>
         </div>
-
-        {/* Textarea for Natural Language Specification */}
-        <div className="space-y-2">
-          <textarea
-            rows={4}
-            value={requirementPrompt}
-            onChange={(e) => setRequirementPrompt(e.target.value)}
-            placeholder={`Describe lo que debe hacer tu microservicio para ${activeClient.name}... \nEjemplo: Microservicio para originación y evaluación de préstamos vehiculares con validación de scoring crediticio, cálculo de cuotas con Panache ORM y publicación asíncrona de eventos a Kafka.`}
-            className="w-full p-4 bg-tcs-dark border border-tcs-border rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-tcs-blue leading-relaxed font-sans placeholder:text-tcs-muted/60 shadow-inner"
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {PHASES.map((phase) => {
+            const isCurrent = activePhase === phase.num;
+            const isDone = activePhase > phase.num;
+            return (
+              <button
+                key={phase.num}
+                type="button"
+                onClick={() => setActivePhase(phase.num)}
+                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                  isCurrent
+                    ? 'bg-gradient-to-br from-tcs-blue/30 to-tcs-navy border-tcs-cyan text-white shadow-lg shadow-cyan-900/20'
+                    : isDone
+                    ? 'bg-tcs-dark border-emerald-800/60 text-emerald-300'
+                    : 'bg-tcs-dark/60 border-tcs-border text-tcs-muted hover:border-tcs-blue/50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span
+                    className={`w-5 h-5 rounded-full text-[10px] font-extrabold flex items-center justify-center ${
+                      isCurrent
+                        ? 'bg-tcs-cyan text-tcs-dark'
+                        : isDone
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-tcs-border text-tcs-muted'
+                    }`}
+                  >
+                    {isDone ? '✓' : phase.num}
+                  </span>
+                  <span className="text-[10px] font-mono text-tcs-muted">P{phase.num}</span>
+                </div>
+                <div>
+                  <div className="text-xs font-bold truncate text-white">{phase.title}</div>
+                  <div className="text-[10px] text-tcs-muted truncate mt-0.5">{phase.desc}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
+      </div>
 
-        {/* Primary Action Button (ALWAYS VISIBLE!) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-          <div className="text-xs text-tcs-muted flex items-center space-x-2 font-mono">
-            <span>Cliente: <strong className="text-white">{selectedClient.toUpperCase()}</strong></span>
-            <span>•</span>
-            <span>Java: <strong className="text-tcs-cyan">{javaVersion}</strong></span>
-            <span>•</span>
-            <span>Quarkus: <strong className="text-white">{quarkusVersion}</strong></span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleStartGeneration}
-            disabled={isGenerating || !requirementPrompt.trim()}
-            className="py-3 px-8 bg-gradient-to-r from-tcs-blue via-tcs-cyan to-tcs-blue hover:from-blue-600 hover:to-cyan-500 text-white font-extrabold text-sm rounded-xl shadow-xl shadow-cyan-900/30 transition-all flex items-center justify-center space-x-2.5 disabled:opacity-40 disabled:cursor-not-allowed group"
-          >
-            {isGenerating ? (
-              <>
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                <span>Fabricando Microservicio con Agentes IA...</span>
-              </>
-            ) : (
-              <>
-                <span className="text-lg group-hover:scale-125 transition-transform">🚀</span>
-                <span>Generar Microservicio Quarkus con IA</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* 3. OPTIONAL ADVANCED FINE-TUNING DRAWER */}
-        {showAdvancedSettings && (
-          <div className="pt-5 border-t border-tcs-border/80 space-y-4 animate-fadeIn">
-            <div className="flex items-center space-x-1 border-b border-tcs-border/60 pb-2 overflow-x-auto text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('identity')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'identity' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                1. Identidad
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('arch')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'arch' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                2. Arquitectura
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('security')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'security' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                3. Seguridad
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('database')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'database' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                4. Base de Datos & Entidades
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('endpoints')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'endpoints' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                5. Endpoints REST
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancedTab('extensions')}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${advancedTab === 'extensions' ? 'bg-tcs-blue text-white' : 'text-tcs-muted hover:text-white'}`}
-              >
-                6. Extensiones Quarkus
-              </button>
+      {/* 3. Main Stage: Phase Content + Live Architecture Side-Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column (2 cols): Phase Editor */}
+        <div className="lg:col-span-2 bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-6">
+          {/* Header of Active Phase with AI Suggest button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-tcs-border/60 pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="px-2 py-0.5 rounded-full bg-tcs-blue/20 text-tcs-cyan border border-tcs-blue/40 text-[11px] font-bold font-mono">
+                  FASE {activePhase}
+                </span>
+                <h3 className="text-base font-extrabold text-white">
+                  {PHASES[activePhase - 1].title}
+                </h3>
+              </div>
+              <p className="text-xs text-tcs-muted mt-1">
+                {PHASES[activePhase - 1].desc}
+              </p>
             </div>
 
-            {/* Tab: Identity */}
-            {advancedTab === 'identity' && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <button
+              type="button"
+              onClick={handleAiSuggestCurrentPhase}
+              className="px-3.5 py-1.5 bg-tcs-dark hover:bg-tcs-surface border border-tcs-cyan/40 hover:border-tcs-cyan rounded-xl text-xs font-bold text-tcs-cyan flex items-center space-x-1.5 transition-all shadow-sm"
+              title="Autocompletar sugerencias óptimas de IA para esta fase basadas en el cliente BCP"
+            >
+              <span>✨ Sugerir con IA para esta Fase</span>
+            </button>
+          </div>
+
+          {/* ======================================================== */}
+          {/* FASE 1: STACK BASE & HERRAMIENTA DE CONSTRUCCIÓN         */}
+          {/* ======================================================== */}
+          {activePhase === 1 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div>
+                <label className="block text-xs font-bold text-white mb-2">
+                  1.1. Herramienta de Construcción (Build Tool)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setBuildTool('maven')}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      buildTool === 'maven'
+                        ? 'bg-tcs-blue/20 border-tcs-cyan text-white shadow-md'
+                        : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-blue'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Apache Maven (`pom.xml`)</span>
+                      {buildTool === 'maven' && <span className="text-tcs-cyan text-xs">● Seleccionado</span>}
+                    </div>
+                    <p className="text-[11px] text-tcs-muted mt-1">
+                      Estándar oficial en proyectos Quarkus BCP con Maven Wrapper (`./mvnw`).
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => setBuildTool('gradle')}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      buildTool === 'gradle'
+                        ? 'bg-tcs-blue/20 border-tcs-cyan text-white shadow-md'
+                        : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-blue'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Gradle (`build.gradle`)</span>
+                      {buildTool === 'gradle' && <span className="text-tcs-cyan text-xs">● Seleccionado</span>}
+                    </div>
+                    <p className="text-[11px] text-tcs-muted mt-1">
+                      Construcción incremental de alto rendimiento con Gradle Wrapper (`./gradlew`).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Artifact ID</label>
+                  <label className="block text-xs font-bold text-white mb-1">Versión de Java (JDK)</label>
+                  <select
+                    value={javaVersion}
+                    onChange={(e) => setJavaVersion(e.target.value)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none font-mono"
+                  >
+                    <option value="21">Java 21 (LTS Recomendado BCP)</option>
+                    <option value="17">Java 17 (LTS)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Versión de Quarkus</label>
+                  <select
+                    value={quarkusVersion}
+                    onChange={(e) => setQuarkusVersion(e.target.value)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none font-mono"
+                  >
+                    <option value="3.15.1">Quarkus 3.15.1 (LTS Corporativo)</option>
+                    <option value="3.8.5">Quarkus 3.8.5 (LTS Anterior)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Tipo de Empaquetado</label>
+                  <select
+                    value={packagingType}
+                    onChange={(e) => setPackagingType(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none font-mono"
+                  >
+                    <option value="jvm">JVM Optimizado (Fast-JAR)</option>
+                    <option value="native">GraalVM Native Image</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Artifact ID (Nombre)</label>
                   <input
                     type="text"
                     value={artifactId}
                     onChange={(e) => setArtifactId(e.target.value)}
                     placeholder="ej. bcp-loans-service"
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Package Prefix</label>
+                  <label className="block text-xs font-bold text-white mb-1">Package Prefix (Java)</label>
                   <input
                     type="text"
                     value={packagePrefix}
                     onChange={(e) => setPackagePrefix(e.target.value)}
                     placeholder="ej. pe.com.bcp"
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Puerto HTTP</label>
+                  <label className="block text-xs font-bold text-white mb-1">Puerto HTTP</label>
                   <input
                     type="number"
                     value={httpPort}
                     onChange={(e) => setHttpPort(parseInt(e.target.value) || 8080)}
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
               </div>
-            )}
 
-            {/* Tab: Architecture */}
-            {advancedTab === 'arch' && (
-              <div className="space-y-3 pt-2">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {['Hexagonal', 'Layered', 'Event-Driven'].map((style) => (
+              <div>
+                <label className="block text-xs font-bold text-white mb-1">
+                  Requerimiento General del Microservicio (Lenguaje Natural)
+                </label>
+                <textarea
+                  rows={3}
+                  value={requirementPrompt}
+                  onChange={(e) => setRequirementPrompt(e.target.value)}
+                  placeholder="Describe en lenguaje natural lo que debe hacer tu microservicio..."
+                  className="w-full p-3 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none leading-relaxed"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* FASE 2: ARQUETIPO, PATRONES & CONVENCIONES               */}
+          {/* ======================================================== */}
+          {activePhase === 2 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div>
+                <label className="block text-xs font-bold text-white mb-2">
+                  2.1. Arquetipo Arquitectónico Base
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { id: 'Hexagonal', name: 'Arquitectura Hexagonal (Ports & Adapters)', desc: 'Desacople estricto entre núcleo de negocio, puertos de entrada/salida y adaptadores REST.' },
+                    { id: 'Clean', name: 'Clean Architecture (Onion)', desc: 'Estructura concéntrica de Entidades -> Casos de Uso (UseCases) -> Gateways.' },
+                    { id: 'Layered', name: 'Arquitectura en Capas Clásica', desc: 'Controlador REST -> Capa de Servicio -> Repositorio Panache.' },
+                    { id: 'Event-Driven', name: 'Event-Driven Architecture (EDA)', desc: 'Orientado a procesamiento reactivo de eventos y mensajería Kafka.' },
+                  ].map((arch) => (
                     <div
-                      key={style}
-                      onClick={() => setArchStyle(style)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                        archStyle === style
-                          ? 'bg-tcs-blue/20 border-tcs-cyan text-white shadow'
+                      key={arch.id}
+                      onClick={() => setArchStyle(arch.id)}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        archStyle === arch.id
+                          ? 'bg-tcs-blue/20 border-tcs-cyan text-white shadow-md'
                           : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-blue'
                       }`}
                     >
-                      <div className="text-xs font-bold text-white">{style}</div>
-                      <div className="text-[10px] text-tcs-muted mt-1">
-                        {style === 'Hexagonal' && 'Puertos y adaptadores para desacople bancario estricto.'}
-                        {style === 'Layered' && 'Capas clásicas Controller -> Service -> Repository.'}
-                        {style === 'Event-Driven' && 'Orientado a eventos reactivos con SmallRye y Kafka.'}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{arch.name}</span>
+                        {archStyle === arch.id && <span className="text-tcs-cyan text-xs">● Activo</span>}
                       </div>
+                      <p className="text-[11px] text-tcs-muted mt-1">{arch.desc}</p>
                     </div>
                   ))}
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Notas de Arquitectura (Opcional)</label>
-                  <input
-                    type="text"
-                    value={customArchNotes}
-                    onChange={(e) => setCustomArchNotes(e.target.value)}
-                    placeholder="ej. Inmutabilidad en modelos de dominio y validación con Hibernate Validator..."
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white focus:border-tcs-blue focus:outline-none"
-                  />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-white mb-2">
+                  2.2. Patrones de Diseño Sugeridos (Selecciona los requeridos)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { id: 'REPOSITORY', name: 'Repository / Panache Pattern', desc: 'Abstracción limpia de persistencia' },
+                    { id: 'BUILDER', name: 'Builder / Fluent DTOs', desc: 'Inmutabilidad en objetos y requests' },
+                    { id: 'OUTBOX', name: 'Transactional Outbox', desc: 'Garantía de entrega de eventos a Kafka' },
+                    { id: 'SAGA', name: 'Saga Pattern', desc: 'Transacciones distribuidas' },
+                    { id: 'STRATEGY', name: 'Strategy Pattern', desc: 'Políticas de cálculo intercambiables' },
+                    { id: 'FACTORY', name: 'Factory Pattern', desc: 'Instanciación desacoplada' },
+                  ].map((p) => {
+                    const isChecked = selectedPatterns.includes(p.id);
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => togglePattern(p.id)}
+                        className={`p-2.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                          isChecked
+                            ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
+                            : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-blue'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{p.name}</span>
+                          <span className={`text-[10px] font-bold ${isChecked ? 'text-emerald-400' : 'text-tcs-muted'}`}>
+                            {isChecked ? '✓' : '+'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-tcs-muted mt-1">{p.desc}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            )}
 
-            {/* Tab: Security */}
-            {advancedTab === 'security' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Mecanismo de Seguridad</label>
+                  <label className="block text-xs font-bold text-white mb-1">Estilo de Variables</label>
+                  <select
+                    value={variableNamingStyle}
+                    onChange={(e) => setVariableNamingStyle(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none font-mono"
+                  >
+                    <option value="camelCase">camelCase (Estándar Java BCP)</option>
+                    <option value="snake_case">snake_case</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Sufijo Casos de Uso</label>
+                  <input
+                    type="text"
+                    value={useCaseSuffix}
+                    onChange={(e) => setUseCaseSuffix(e.target.value)}
+                    placeholder="UseCase"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Manejo de Excepciones</label>
+                  <select
+                    value={exceptionHandlingStrategy}
+                    onChange={(e) => setExceptionHandlingStrategy(e.target.value)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none"
+                  >
+                    <option value="Global ServerExceptionMapper (RFC-7807)">Global @ServerExceptionMapper (RFC-7807)</option>
+                    <option value="ResponseStatusException">ResponseStatusException inline</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* FASE 3: SEGURIDAD & GOBERNANZA                          */}
+          {/* ======================================================== */}
+          {activePhase === 3 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Mecanismo de Autenticación</label>
                   <select
                     value={securityOption}
                     onChange={(e) => setSecurityOption(e.target.value)}
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white focus:border-tcs-blue focus:outline-none"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none"
                   >
-                    <option value="JWT">JWT (JSON Web Token - SmallRye JWT)</option>
-                    <option value="OIDC">OpenID Connect / OAuth2</option>
+                    <option value="JWT">Quarkus SmallRye JWT (Tokens Criptográficos)</option>
+                    <option value="OIDC">OpenID Connect / Azure AD BCP</option>
+                    <option value="mTLS">Mutual TLS (mTLS Certificados PKI)</option>
                     <option value="NONE">Sin Seguridad (Stateless Público)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-tcs-muted mb-1">Roles de Usuario</label>
+                  <label className="block text-xs font-bold text-white mb-1">Gestión de Secretos</label>
+                  <select
+                    value={vaultProvider}
+                    onChange={(e) => setVaultProvider(e.target.value)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none"
+                  >
+                    <option value="Azure Key Vault">Azure Key Vault (Normado BCP)</option>
+                    <option value="HashiCorp Vault">HashiCorp Vault</option>
+                    <option value="Environment Variables">Variables de Entorno del Contenedor</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Emisor del Token (JWT Issuer URL)</label>
+                  <input
+                    type="text"
+                    value={jwtIssuer}
+                    onChange={(e) => setJwtIssuer(e.target.value)}
+                    placeholder="https://auth.viabcp.com"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Roles de Usuario (RBAC)</label>
                   <input
                     type="text"
                     value={securityRoles}
                     onChange={(e) => setSecurityRoles(e.target.value)}
                     placeholder="ADMIN, OPERATOR, AUDITOR"
-                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white focus:border-tcs-blue focus:outline-none"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none"
                   />
                 </div>
               </div>
-            )}
 
-            {/* Tab: Database & Entities */}
-            {advancedTab === 'database' && (
-              <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-tcs-muted mb-1">Persistencia / Base de Datos</label>
-                    <select
-                      value={databaseOption}
-                      onChange={(e) => setDatabaseOption(e.target.value)}
-                      className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white focus:border-tcs-blue focus:outline-none"
-                    >
-                      <option value="POSTGRESQL_PANACHE">PostgreSQL + Hibernate ORM Panache (Recomendado)</option>
-                      <option value="SQLSERVER_PANACHE">Microsoft SQL Server + Panache (Normado BCP)</option>
-                      <option value="MONGODB_PANACHE">MongoDB Panache (NoSQL Documental)</option>
-                      <option value="NONE">Sin Base de Datos (100% Stateless)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-tcs-muted mb-1">Nombre de la Base de Datos</label>
-                    <input
-                      type="text"
-                      value={databaseName}
-                      onChange={(e) => setDatabaseName(e.target.value)}
-                      placeholder="ej. bcp_loans_db"
-                      className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-lg text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
-                    />
-                  </div>
+              <div className="p-3.5 rounded-xl bg-tcs-dark/70 border border-tcs-border text-xs text-tcs-muted space-y-1">
+                <span className="font-bold text-white">🔒 Directiva de Seguridad BCP:</span>
+                <p>
+                  Todas las operaciones REST del microservicio deben requerir validación de claims y anotación
+                  `@RolesAllowed`. No se permite guardar credenciales en texto plano en `application.properties`.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* FASE 4: PERSISTENCIA & ENTIDADES                         */}
+          {/* ======================================================== */}
+          {activePhase === 4 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Motor de Persistencia</label>
+                  <select
+                    value={databaseOption}
+                    onChange={(e) => setDatabaseOption(e.target.value)}
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:border-tcs-blue focus:outline-none"
+                  >
+                    <option value="SQLSERVER_PANACHE">Microsoft SQL Server + Panache (Normado BCP)</option>
+                    <option value="POSTGRESQL_PANACHE">PostgreSQL + Panache ORM</option>
+                    <option value="MONGODB_PANACHE">MongoDB Panache (NoSQL Documental)</option>
+                    <option value="NONE">Sin Base de Datos (100% Stateless)</option>
+                  </select>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-white">Entidades del Dominio ({entities.length})</span>
-                    <button
-                      type="button"
-                      onClick={handleAddEntity}
-                      className="text-xs text-tcs-cyan hover:underline font-semibold"
-                    >
-                      + Agregar Entidad Manual
-                    </button>
+                <div>
+                  <label className="block text-xs font-bold text-white mb-1">Nombre de Base de Datos / Schema</label>
+                  <input
+                    type="text"
+                    value={databaseName}
+                    onChange={(e) => setDatabaseName(e.target.value)}
+                    placeholder="ej. bcp_loans_db"
+                    className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Editable Entities Table */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-white">Entidades del Dominio ({entities.length})</label>
+                    <p className="text-[11px] text-tcs-muted">Edita campos, tipos Java y restricciones de persistencia.</p>
                   </div>
-                  {entities.length === 0 ? (
-                    <div className="p-3 rounded-lg bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic">
-                      No hay entidades fijas definidas. La IA diseñará las entidades automáticamente a partir de tu requerimiento.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {entities.map((ent, idx) => (
-                        <div key={idx} className="p-3 bg-tcs-dark border border-tcs-border rounded-lg text-xs flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-white">{ent.name}</span>
-                            <span className="text-tcs-muted ml-2 font-mono">Tabla: {ent.tableName}</span>
-                            <span className="text-tcs-cyan ml-2">({ent.fields.length} campos)</span>
+                  <button
+                    type="button"
+                    onClick={handleAddEntity}
+                    className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
+                  >
+                    + Agregar Entidad
+                  </button>
+                </div>
+
+                {entities.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic text-center">
+                    No hay entidades definidas. Pulsa "Agregar Entidad" o "Sugerir con IA" para estructurar el modelo relacional.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {entities.map((ent, idx) => (
+                      <div key={idx} className="p-4 bg-tcs-dark border border-tcs-border rounded-xl space-y-3">
+                        <div className="flex items-center justify-between border-b border-tcs-border/60 pb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 rounded-full bg-tcs-cyan"></span>
+                            <span className="text-xs font-extrabold text-white">{ent.name}</span>
+                            <span className="text-xs text-tcs-muted font-mono">(`{ent.tableName}`)</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => setEntities(entities.filter((_, i) => i !== idx))}
-                            className="text-rose-400 hover:text-rose-300 text-xs"
+                            className="text-rose-400 hover:text-rose-300 text-xs font-semibold"
                           >
-                            Eliminar
+                            Eliminar Entidad
                           </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* Tab: Endpoints */}
-            {advancedTab === 'endpoints' && (
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-white">Endpoints REST ({customEndpoints.length})</span>
-                  <button
-                    type="button"
-                    onClick={handleAddEndpoint}
-                    className="text-xs text-tcs-cyan hover:underline font-semibold"
-                  >
-                    + Agregar Endpoint
-                  </button>
-                </div>
-                {customEndpoints.length === 0 ? (
-                  <div className="p-3 rounded-lg bg-tcs-dark border border-tcs-border text-xs text-tcs-muted italic">
-                    Sin endpoints fijos. La IA generará los endpoints REST reactivos óptimos para este caso de uso.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {customEndpoints.map((ep, idx) => (
-                      <div key={idx} className="p-3 bg-tcs-dark border border-tcs-border rounded-lg text-xs flex items-center justify-between font-mono">
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-0.5 rounded font-bold ${ep.method === 'POST' ? 'bg-blue-950 text-blue-300' : 'bg-emerald-950 text-emerald-300'}`}>
-                            {ep.method}
-                          </span>
-                          <span className="text-white">{ep.path}</span>
-                          <span className="text-tcs-muted font-sans text-[11px]">— {ep.summary}</span>
+                        {/* Fields list */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {ent.fields.map((f, fIdx) => (
+                            <div key={fIdx} className="p-2 bg-tcs-card border border-tcs-border rounded-lg text-xs font-mono flex items-center justify-between">
+                              <span className="text-white">{f.name}</span>
+                              <span className="text-tcs-cyan text-[11px]">{f.type}</span>
+                            </div>
+                          ))}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setCustomEndpoints(customEndpoints.filter((_, i) => i !== idx))}
-                          className="text-rose-400 hover:text-rose-300 font-sans"
-                        >
-                          ✕
-                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Tab: Extensions */}
-            {advancedTab === 'extensions' && (
-              <div className="space-y-3 pt-2">
-                <label className="block text-xs font-medium text-tcs-muted">Extensiones Quarkus Seleccionadas</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+          {/* ======================================================== */}
+          {/* FASE 5: APIS & ENDPOINTS REACTIVOS                       */}
+          {/* ======================================================== */}
+          {activePhase === 5 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-white">Endpoints REST Reactivos ({customEndpoints.length})</label>
+                  <p className="text-[11px] text-tcs-muted">Controladores RESTEasy Reactive con SmallRye OpenAPI / Swagger.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddEndpoint}
+                  className="px-3 py-1 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-lg text-xs font-bold transition-all shadow"
+                >
+                  + Agregar Endpoint
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {customEndpoints.map((ep, idx) => (
+                  <div key={idx} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl text-xs flex items-center justify-between font-mono">
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-0.5 rounded font-extrabold text-[11px] ${
+                        ep.method === 'POST' ? 'bg-blue-950 text-blue-300 border border-blue-800' :
+                        ep.method === 'GET' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
+                        'bg-amber-950 text-amber-300 border border-amber-800'
+                      }`}>
+                        {ep.method}
+                      </span>
+                      <span className="text-white font-bold">{ep.path}</span>
+                      <span className="text-tcs-muted font-sans text-[11px] truncate max-w-xs">— {ep.summary}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomEndpoints(customEndpoints.filter((_, i) => i !== idx))}
+                      className="text-rose-400 hover:text-rose-300 text-xs font-sans"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* FASE 6: EVENTOS & KAFKA                                  */}
+          {/* ======================================================== */}
+          {activePhase === 6 && (
+            <div className="space-y-5 animate-fadeIn">
+              <div>
+                <label className="block text-xs font-bold text-white mb-2">
+                  Broker de Mensajería & Eventos
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { id: 'quarkus-resteasy-reactive-jackson', name: 'RESTEasy Reactive Jackson' },
-                    { id: 'quarkus-smallrye-openapi', name: 'SmallRye OpenAPI / Swagger' },
-                    { id: 'quarkus-hibernate-validator', name: 'Hibernate Validator' },
-                    { id: 'quarkus-smallrye-health', name: 'SmallRye Health' },
-                    { id: 'quarkus-micrometer-registry-prometheus', name: 'Micrometer Prometheus' },
-                    { id: 'quarkus-smallrye-reactive-messaging-kafka', name: 'Reactive Messaging Kafka' },
-                  ].map((ext) => {
-                    const isChecked = selectedExtensions.includes(ext.id);
-                    return (
-                      <label key={ext.id} className="flex items-center space-x-2 p-2 bg-tcs-dark border border-tcs-border rounded-lg cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedExtensions([...selectedExtensions, ext.id]);
-                            } else {
-                              setSelectedExtensions(selectedExtensions.filter((x) => x !== ext.id));
-                            }
-                          }}
-                          className="rounded border-tcs-border text-tcs-blue focus:ring-0"
-                        />
-                        <span className="text-white">{ext.name}</span>
-                      </label>
-                    );
-                  })}
+                    { id: 'kafka', name: 'Apache Kafka', desc: 'SmallRye Reactive Messaging con Outbox Pattern' },
+                    { id: 'service_bus', name: 'Azure Service Bus', desc: 'Colas y tópicos en nube Azure' },
+                    { id: 'none', name: 'Sin Mensajería Asíncrona', desc: 'Comunicación síncrona exclusiva' },
+                  ].map((b) => (
+                    <div
+                      key={b.id}
+                      onClick={() => setEventBroker(b.id as any)}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        eventBroker === b.id
+                          ? 'bg-tcs-blue/20 border-tcs-cyan text-white shadow-md'
+                          : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-blue'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{b.name}</span>
+                        {eventBroker === b.id && <span className="text-tcs-cyan text-xs">● Activo</span>}
+                      </div>
+                      <p className="text-[11px] text-tcs-muted mt-1">{b.desc}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
+
+              {eventBroker !== 'none' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">Tópico de Salida (Outgoing Channel)</label>
+                    <input
+                      type="text"
+                      value={eventTopicOut}
+                      onChange={(e) => setEventTopicOut(e.target.value)}
+                      className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">Tópico de Entrada (Incoming Channel)</label>
+                    <input
+                      type="text"
+                      value={eventTopicIn}
+                      onChange={(e) => setEventTopicIn(e.target.value)}
+                      className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white font-mono focus:border-tcs-blue focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* FASE 7: VISUALIZACIÓN DE LÓGICA & FABRICACIÓN FINAL     */}
+          {/* ======================================================== */}
+          {activePhase === 7 && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Diagram of Business Logic Pipeline */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-white">
+                  7.1. Flujo Lógico de Operación del Microservicio
+                </label>
+                <div className="p-4 bg-tcs-dark border border-tcs-border rounded-2xl space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs font-mono">
+                    <div className="p-2.5 rounded-xl bg-tcs-card border border-tcs-border">
+                      <div className="text-[10px] text-tcs-cyan">Paso 1</div>
+                      <div className="font-bold text-white mt-1">REST Request</div>
+                      <div className="text-[10px] text-tcs-muted">OpenAPI / JSON</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-tcs-card border border-tcs-border">
+                      <div className="text-[10px] text-tcs-cyan">Paso 2</div>
+                      <div className="font-bold text-white mt-1">JWT Security</div>
+                      <div className="text-[10px] text-tcs-muted">Claims & Roles</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-tcs-card border border-tcs-border">
+                      <div className="text-[10px] text-tcs-cyan">Paso 3</div>
+                      <div className="font-bold text-white mt-1">{archStyle} Core</div>
+                      <div className="text-[10px] text-tcs-muted">Reglas & Dominio</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-tcs-card border border-tcs-border">
+                      <div className="text-[10px] text-tcs-cyan">Paso 4</div>
+                      <div className="font-bold text-white mt-1">Panache ORM</div>
+                      <div className="text-[10px] text-tcs-muted">ACID Persistence</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-tcs-card border border-tcs-border">
+                      <div className="text-[10px] text-tcs-cyan">Paso 5</div>
+                      <div className="font-bold text-white mt-1">{eventBroker === 'none' ? 'Response 201' : 'Outbox / Kafka'}</div>
+                      <div className="text-[10px] text-tcs-muted">{eventBroker === 'none' ? 'JSON Result' : 'Event Emitted'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* BCP Governance Compliance Semaphore */}
+              <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+                <div className="flex items-center space-x-2 text-emerald-300 text-xs font-bold">
+                  <span>🛡️ Validación de Cumplimiento de Políticas BCP:</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[10px]">
+                    100% CUMPLIDO
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-emerald-200">
+                  <div>✓ Java {javaVersion} (LTS)</div>
+                  <div>✓ Quarkus {quarkusVersion}</div>
+                  <div>✓ Arquitectura {archStyle}</div>
+                  <div>✓ Panache Relacional</div>
+                </div>
+              </div>
+
+              {/* THE FINAL GENERATION BUTTON (EXCLUSIVELY IN PHASE 7!) */}
+              <div className="p-6 bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border-2 border-tcs-cyan/60 rounded-2xl text-center space-y-3 shadow-2xl">
+                <h4 className="text-base font-extrabold text-white">
+                  ¿Todo listo para fabricar el microservicio?
+                </h4>
+                <p className="text-xs text-tcs-muted max-w-xl mx-auto">
+                  Los agentes de IA de LangGraph escribirán todo el código fuente Quarkus, pom.xml/build.gradle,
+                  configuraciones y pruebas unitarias basándose en tus decisiones de las 7 fases.
+                </p>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleStartGeneration}
+                    disabled={isGenerating}
+                    className="py-4 px-10 bg-gradient-to-r from-tcs-blue via-tcs-cyan to-tcs-blue hover:from-blue-600 hover:to-cyan-500 text-white font-extrabold text-base rounded-2xl shadow-2xl shadow-cyan-900/50 transition-all flex items-center justify-center space-x-3 mx-auto disabled:opacity-50"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <span className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>Fabricando Proyecto Quarkus con Agentes IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xl">🚀</span>
+                        <span>Fabricar Microservicio Quarkus Completo con IA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stepper Navigation Buttons (Bottom) */}
+          <div className="flex items-center justify-between border-t border-tcs-border/60 pt-4">
+            <button
+              type="button"
+              disabled={activePhase === 1}
+              onClick={() => setActivePhase(activePhase - 1)}
+              className="px-4 py-2 bg-tcs-dark hover:bg-tcs-surface border border-tcs-border rounded-xl text-xs font-semibold text-tcs-muted hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              ← Fase Anterior
+            </button>
+
+            {activePhase < 7 && (
+              <button
+                type="button"
+                onClick={() => setActivePhase(activePhase + 1)}
+                className="px-6 py-2.5 bg-tcs-blue hover:bg-tcs-cyan text-white hover:text-tcs-dark rounded-xl text-xs font-extrabold shadow-md transition-all flex items-center space-x-1.5"
+              >
+                <span>Siguiente: Fase {activePhase + 1}</span>
+                <span>→</span>
+              </button>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* 4. LIVE MULTI-AGENT PROGRESS STEPPER */}
-      {isGenerating && (
-        <div className="bg-tcs-card border border-tcs-blue/40 rounded-2xl p-6 shadow-xl space-y-4 animate-pulse">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-white flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-tcs-cyan"></span>
-              <span>Cadena Multi-Agente en Ejecución (LangGraph)</span>
-            </h4>
-            <span className="text-xs font-mono text-tcs-cyan">Procesando...</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-            {[
-              { num: 1, title: 'Gobernanza BCP' },
-              { num: 2, title: 'Blueprint Arquitecto' },
-              { num: 3, title: 'DevSecOps Scaffolding' },
-              { num: 4, title: 'Código Java Quarkus' },
-              { num: 5, title: 'Pruebas & Manifest SHA-256' },
-            ].map((step) => (
-              <div key={step.num} className="p-3 rounded-xl bg-tcs-dark border border-tcs-border text-center space-y-1">
-                <div className="text-[10px] text-tcs-cyan font-mono font-bold">Fase {step.num}</div>
-                <div className="text-xs font-semibold text-white truncate">{step.title}</div>
+        {/* Right Column (1 col): Live Blueprint & Summary Card */}
+        <div className="bg-tcs-card border border-tcs-border rounded-2xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 border-b border-tcs-border pb-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-tcs-cyan animate-pulse"></span>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                Resumen del Microservicio en Vivo
+              </h4>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
+                <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">1. Stack & Identidad</div>
+                <div className="text-white font-bold">{artifactId}</div>
+                <div className="text-tcs-cyan font-mono text-[11px]">{packagePrefix}</div>
+                <div className="text-tcs-muted text-[11px]">
+                  {buildTool.toUpperCase()} • Java {javaVersion} • Quarkus {quarkusVersion}
+                </div>
               </div>
-            ))}
+
+              <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
+                <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">2. Arquitectura & Patrones</div>
+                <div className="text-white font-bold">{archStyle}</div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedPatterns.map((p) => (
+                    <span key={p} className="px-1.5 py-0.5 rounded bg-tcs-surface text-tcs-cyan text-[10px] font-mono">
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
+                <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">3. Seguridad & Persistencia</div>
+                <div className="text-white font-bold">{securityOption} ({vaultProvider})</div>
+                <div className="text-tcs-muted text-[11px]">{databaseOption}</div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-tcs-dark/80 border border-tcs-border space-y-1.5">
+                <div className="text-[10px] text-tcs-muted uppercase font-mono font-bold">4. Dominio & Endpoints</div>
+                <div className="text-white font-bold">{entities.length} Entidades • {customEndpoints.length} Endpoints</div>
+                <div className="text-tcs-muted text-[11px]">Broker: {eventBroker.toUpperCase()}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-tcs-border text-center">
+            <span className="text-[11px] font-mono text-tcs-muted">
+              Fase Actual: <strong className="text-tcs-cyan">{activePhase} de 7</strong>
+            </span>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 5. GENERATED CODE VIEWER & VERIFICATION */}
+      {/* 4. Generated Code Viewer & Verifier (When Job Exists) */}
       {currentJob && currentJob.files && currentJob.files.length > 0 && (
         <div className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-4 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-tcs-border pb-4">
@@ -800,7 +1260,7 @@ export const StudioPanel: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-tcs-muted mt-0.5">
-                Archivos compilables generados con Java {javaVersion} y Quarkus {quarkusVersion}. Puedes editar archivos directamente antes de empaquetar.
+                Proyecto compilable con {buildTool.toUpperCase()}, Java {javaVersion} y Quarkus {quarkusVersion}.
               </p>
             </div>
 
@@ -825,7 +1285,7 @@ export const StudioPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Verification and Packager Modal */}
+      {/* Verification Modal */}
       {currentJob && (
         <VerifierModal
           isOpen={isVerifierOpen}
