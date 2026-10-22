@@ -1,12 +1,22 @@
 from typing import Tuple, List, Optional
+import re
 import httpx
 from app.llm.base import BaseLLMClient
 
 MODEL_MAP = {
-    "economic": "gemini-1.5-flash",
-    "balanced": "gemini-1.5-flash",
+    "economic": "gemini-3.8-flash",
+    "balanced": "gemini-3.8-flash",
     "advanced": "gemini-1.5-pro",
 }
+
+PRIORITY_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
+    "gemini-pro",
+]
 
 
 class GeminiClient(BaseLLMClient):
@@ -16,7 +26,7 @@ class GeminiClient(BaseLLMClient):
         if model_name and model_name.strip() and model_name not in ("default", "mock-fast"):
             self.model_name = model_name.strip()
         else:
-            self.model_name = MODEL_MAP.get(mode, "gemini-1.5-flash")
+            self.model_name = MODEL_MAP.get(mode, "gemini-3.8-flash")
 
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
         self.provider = "gemini"
@@ -56,30 +66,24 @@ class GeminiClient(BaseLLMClient):
                 pass
         return [], "v1beta"
 
-    def _pick_best_model(self, supported: List[str], preferred: Optional[str] = None) -> str:
-        """Select the highest priority available model."""
-        if preferred and preferred in supported:
-            return preferred
-        priority = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-pro",
-            "gemini-1.5-pro-latest",
-            "gemini-2.0-flash-exp",
-            "gemini-pro",
-        ]
-        for p in priority:
-            if p in supported:
-                return p
-        return supported[0] if supported else "gemini-1.5-flash"
+    def _sort_models(self, models: List[str]) -> List[str]:
+        ordered = []
+        for p in PRIORITY_MODELS:
+            if p in models and p not in ordered:
+                ordered.append(p)
+        for m in models:
+            if m not in ordered:
+                ordered.append(m)
+        return ordered
 
     def _execute_request(self, client: httpx.Client, payload: dict) -> httpx.Response:
-        """Execute request trying current version, v1 fallback, and auto-model discovery on 404."""
+        """Execute request trying current model, dynamic suggestion extraction, and multi-model fallback."""
         key = self._clean_key()
 
-        # Step 1: Try current model on v1beta and v1
+        last_resp = None
+        last_error_text = ""
+
+        # Phase 1: Try current model on v1beta and v1
         for ver in ["v1beta", "v1"]:
             url_key = f"https://generativelanguage.googleapis.com/{ver}/models/{self.model_name}:generateContent?key={key}"
             headers_key = {"Content-Type": "application/json", "x-goog-api-key": key}
@@ -96,29 +100,53 @@ class GeminiClient(BaseLLMClient):
                     if resp_oauth.status_code in (200, 201):
                         self.base_url = f"https://generativelanguage.googleapis.com/{ver}"
                         return resp_oauth
+                last_resp = resp
+                last_error_text = resp.text
             except Exception:
                 pass
 
-        # Step 2: If model was 404 Not Found, auto-discover all supported models for this API Key
-        supported, ver = self._discover_supported_models(client, key)
-        if supported:
-            best_model = self._pick_best_model(supported, self.model_name)
-            self.model_name = best_model
-            self.base_url = f"https://generativelanguage.googleapis.com/{ver}"
-            url_key = f"{self.base_url}/models/{self.model_name}:generateContent?key={key}"
-            headers_key = {"Content-Type": "application/json", "x-goog-api-key": key}
-            try:
-                resp_retry = client.post(url_key, json=payload, headers=headers_key)
-                if resp_retry.status_code in (200, 201):
-                    return resp_retry
-                return resp_retry
-            except Exception:
-                pass
+        # Phase 2: If Google returned 404 with a specific suggested model in the message, try it immediately!
+        # Example message: "Please update your code to use models/gemini-3.8-flash for the latest features..."
+        candidates = []
+        if last_error_text:
+            match = re.search(r"use models/([a-zA-Z0-9\.\-_]+)", last_error_text)
+            if match:
+                candidates.append(match.group(1).strip())
 
-        # Default fallback to direct call if auto-discovery couldn't find models
-        url_fallback = f"{self.base_url}/models/{self.model_name}:generateContent?key={key}"
-        headers_fallback = {"Content-Type": "application/json", "x-goog-api-key": key}
-        return client.post(url_fallback, json=payload, headers=headers_fallback)
+        # Also add default priority models to candidate list
+        for p in PRIORITY_MODELS:
+            if p not in candidates:
+                candidates.append(p)
+
+        # Also discover models from account via ListModels
+        discovered, api_ver = self._discover_supported_models(client, key)
+        if discovered:
+            for d in discovered:
+                if d not in candidates:
+                    candidates.append(d)
+
+        # Phase 3: Loop through all candidates until one succeeds with 200 OK!
+        for cand_model in candidates:
+            if cand_model == self.model_name:
+                continue  # already tried in Phase 1
+            for ver in ["v1beta", "v1"]:
+                url_cand = f"https://generativelanguage.googleapis.com/{ver}/models/{cand_model}:generateContent?key={key}"
+                headers_cand = {"Content-Type": "application/json", "x-goog-api-key": key}
+                try:
+                    resp_cand = client.post(url_cand, json=payload, headers=headers_cand)
+                    if resp_cand.status_code in (200, 201):
+                        self.model_name = cand_model
+                        self.base_url = f"https://generativelanguage.googleapis.com/{ver}"
+                        return resp_cand
+                    last_resp = resp_cand
+                except Exception:
+                    pass
+
+        return last_resp or client.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={key}",
+            json=payload,
+            headers={"Content-Type": "application/json", "x-goog-api-key": key}
+        )
 
     def test_connection(self) -> Tuple[bool, str]:
         key = self._clean_key()
@@ -138,7 +166,7 @@ class GeminiClient(BaseLLMClient):
                     err_json = resp.json()
                     raw_msg = err_json.get("error", {}).get("message", resp.text)
                     if resp.status_code == 404:
-                        return False, f"Modelo no disponible (404). Se intentó auto-detectar pero no se encontraron modelos compatibles con generateContent para esta clave. Detalle: {raw_msg}"
+                        return False, f"Modelo no disponible (404). Detalle: {raw_msg}"
                     elif resp.status_code == 401:
                         return False, f"Token o API Key no autorizada (401). Verifica que la clave de Google AI Studio sea válida y comience con 'AIzaSy...'. Detalle: {raw_msg}"
                     elif resp.status_code == 400 and "API key not valid" in raw_msg:

@@ -185,7 +185,7 @@ export const AdminPanel: React.FC = () => {
   };
 
       const PROVIDER_MODELS: Record<string, string[]> = {
-    GEMINI: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'],
+    GEMINI: ['gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
     DEEPSEEK: ['deepseek-chat', 'deepseek-coder'],
     OPENAI: ['gpt-4o', 'gpt-4o-mini'],
     ANTHROPIC: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
