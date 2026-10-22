@@ -171,6 +171,15 @@ export const api = {
   // --- AI-ORCHESTRATOR-SERVICE (:8003) ---
   orchestrator: {
     checkHealth: () => request<{ status: string }>(PORTS.ORCHESTRATOR, '/health'),
+    setupDirectKey: (data: { api_key: string; model_name?: string; provider?: string }) =>
+      request<{ success: boolean; provider: string; model_name?: string; masked_key?: string; message: string; latency_ms: number }>(
+        PORTS.ORCHESTRATOR,
+        '/vault/direct-key',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      ),
     getVaultStatus: async () => {
       try {
         const res = await request<any>(PORTS.ORCHESTRATOR, '/vault/status');

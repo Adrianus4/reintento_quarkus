@@ -155,24 +155,36 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // Actions: Vault & Gateway
-  const handleSaveVaultKey = async (e: React.FormEvent) => {
+  // Direct API Key Setup
+  const handleDirectKeySetup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!vaultApiKey) return;
     setLoading(true);
+    setTestResult(null);
     try {
-      await api.orchestrator.setVaultKey({
-        provider: vaultKeyProvider,
+      const res = await (api.orchestrator as any).setupDirectKey({
         api_key: vaultApiKey,
+        model_name: gatewayConfig.model_name || undefined,
+        provider: vaultKeyProvider !== 'GEMINI' ? vaultKeyProvider.toLowerCase() : undefined,
       });
-      showFeedback('success', `Credencial guardada para ${vaultKeyProvider}`);
-      setVaultApiKey('');
-      await loadVaultAndGateway();
+      if (res.success) {
+        showFeedback('success', res.message || 'API Key configurada y activada con éxito.');
+        setTestResult({ provider: res.provider, status: 'OK', message: `${res.message} (${res.latency_ms} ms)` });
+        setVaultApiKey('');
+        await loadVaultAndGateway();
+      } else {
+        showFeedback('error', res.message || 'Fallo de autenticación con la API Key.');
+        setTestResult({ provider: res.provider, status: 'FAILED', message: res.message });
+      }
     } catch (err: any) {
-      showFeedback('error', err.message);
+      showFeedback('error', 'Error al conectar: ' + err.message);
+      setTestResult({ provider: vaultKeyProvider, status: 'FAILED', message: err.message });
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSaveVaultKey = handleDirectKeySetup;
 
   const handleTestKey = async (provider: string) => {
     setLoading(true);
@@ -516,180 +528,139 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* SUBTAB 2: VAULT & GATEWAY */}
+      {/* SUBTAB 2: CONFIGURACION DIRECTA DE API KEY (SIN CONMUTADOR) */}
       {subTab === 'vault' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* AI Vault Section */}
-          <div className="bg-tcs-card border border-tcs-border rounded-xl p-5 shadow space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>Bóveda Cifrada de Credenciales (Fernet)</span>
-              </h3>
-              <p className="text-xs text-tcs-muted">
-                Almacena llaves de API cifradas con Fernet sin fugas ni almacenamiento en plano.
-              </p>
-            </div>
-
-            {/* Providers Status Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
-                const info = vaultStatus[prov];
-                const isConf = info?.configured;
-                return (
-                  <div key={prov} className="p-3 bg-tcs-dark border border-tcs-border rounded-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-white">{prov}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                          isConf
-                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
-                            : 'bg-rose-950/60 text-rose-400 border border-rose-800'
-                        }`}
-                      >
-                        {isConf ? 'CONFIGURADO' : 'PENDIENTE'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-[10px] font-mono text-tcs-muted">
-                        {info?.masked_key || '••••••••'}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isConf || loading}
-                        onClick={() => handleTestKey(prov)}
-                        className="text-[10px] px-2 py-0.5 bg-tcs-surface border border-tcs-border rounded text-tcs-cyan hover:border-tcs-cyan disabled:opacity-30"
-                      >
-                        Probar
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="bg-tcs-card border border-tcs-border rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="flex items-center space-x-3 pb-3 border-b border-tcs-border">
+              <div className="w-10 h-10 rounded-xl bg-tcs-blue/20 border border-tcs-blue/40 flex items-center justify-center text-xl">
+                🔑
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  Ingesta Directa de API Key
+                </h3>
+                <p className="text-xs text-tcs-muted">
+                  Ingresa tu clave de OpenAI, Google Gemini, Anthropic o DeepSeek. El proveedor se detecta automáticamente.
+                </p>
+              </div>
             </div>
 
             {testResult && (
               <div
-                className={`p-2.5 rounded-lg border text-xs font-mono ${
+                className={`p-3 rounded-xl border text-xs font-mono flex items-center justify-between ${
                   testResult.status === 'OK' || testResult.status === 'SUCCESS'
-                    ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300'
-                    : 'bg-rose-950/60 border-rose-800 text-rose-300'
+                    ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300'
+                    : 'bg-rose-950/60 border-rose-500/60 text-rose-300'
                 }`}
               >
-                Prueba {testResult.provider}: {testResult.message}
+                <span>{testResult.message}</span>
+                <button onClick={() => setTestResult(null)} className="ml-2 font-bold opacity-70 hover:opacity-100">✕</button>
               </div>
             )}
 
-            {/* Add / Rotate Key Form */}
-            <form onSubmit={handleSaveVaultKey} className="pt-3 border-t border-tcs-border space-y-3">
-              <span className="text-xs font-bold text-white block">Registrar o Rotar Llave</span>
-              <div className="grid grid-cols-3 gap-2">
-                <select
-                  value={vaultKeyProvider}
-                  onChange={(e) => setVaultKeyProvider(e.target.value as AiProvider)}
-                  className="px-2 py-1.5 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue"
-                >
-                  <option value="GEMINI">GEMINI</option>
-                  <option value="OPENAI">OPENAI</option>
-                  <option value="ANTHROPIC">ANTHROPIC</option>
-                  <option value="DEEPSEEK">DEEPSEEK</option>
-                  <option value="GROK">GROK</option>
-                  <option value="GROQ">GROQ</option>
-                  <option value="OPENROUTER">OPENROUTER</option>
-                  <option value="OLLAMA">OLLAMA</option>
-                </select>
+            <form onSubmit={handleDirectKeySetup} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-200 mb-1">
+                  1. Clave de API (API Key)
+                </label>
                 <input
                   type="password"
                   required
                   value={vaultApiKey}
                   onChange={(e) => setVaultApiKey(e.target.value)}
-                  placeholder="Pegar API Key"
-                  className="col-span-2 px-3 py-1.5 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue font-mono"
+                  placeholder="Pega tu API Key (ej. AIzaSy..., sk-..., sk-ant-...)"
+                  className="w-full px-3.5 py-2.5 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:outline-none focus:border-tcs-cyan font-mono"
+                />
+                <p className="text-[11px] text-tcs-muted mt-1">
+                  💡 Autodetección: Si empieza por <code>AIzaSy...</code> se activa Gemini; si empieza por <code>sk-ant...</code> se activa Anthropic; si empieza por <code>sk-...</code> se activa OpenAI.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-200">
+                    2. Modelo LLM (Opcional - se asigna automáticamente según tu clave)
+                  </label>
+                  <span className="text-[10px] text-tcs-cyan font-mono">Personalizable</span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {['gemini-1.5-flash', 'gemini-1.5-pro', 'gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet-20241022', 'deepseek-chat'].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setGatewayConfig({ ...gatewayConfig, model_name: m })}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all ${
+                        gatewayConfig.model_name === m
+                          ? 'bg-tcs-cyan/20 border border-tcs-cyan text-tcs-cyan font-bold'
+                          : 'bg-tcs-surface border border-tcs-border/60 text-tcs-muted hover:text-white'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  value={gatewayConfig.model_name || ''}
+                  onChange={(e) => setGatewayConfig({ ...gatewayConfig, model_name: e.target.value })}
+                  placeholder="ej. gemini-1.5-flash, gpt-4o, claude-3-5-sonnet-20241022"
+                  className="w-full px-3.5 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:outline-none focus:border-tcs-cyan font-mono"
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={loading || !vaultApiKey}
-                className="w-full py-1.5 bg-tcs-blue hover:bg-tcs-accent text-white text-xs font-semibold rounded transition-colors disabled:opacity-50"
+                className="w-full py-2.5 bg-gradient-to-r from-tcs-blue to-tcs-accent hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-extrabold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
               >
-                Cifrar y Guardar en Bóveda
+                <span>{loading ? '⌛ Validando y Activando...' : '🚀 Validar y Activar API Key'}</span>
               </button>
             </form>
           </div>
 
-          {/* AI Gateway Hot-Switching Section */}
-          <div className="bg-tcs-card border border-tcs-border rounded-xl p-5 shadow space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-tcs-cyan"></span>
-                <span>Conmutador de Gateway de IA en Caliente</span>
-              </h3>
-              <p className="text-xs text-tcs-muted">
-                Cambia el motor LLM subyacente sin reiniciar microservicios ni interrumpir operaciones.
-              </p>
-            </div>
-
-            <form onSubmit={handleUpdateGateway} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-tcs-muted mb-1">Proveedor Activo</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
-                    const defaultModels: Record<string, string> = {
-                      GEMINI: 'gemini-1.5-flash',
-                      OPENAI: 'gpt-4o',
-                      ANTHROPIC: 'claude-3-5-sonnet-20241022',
-                      DEEPSEEK: 'deepseek-chat',
-                      GROK: 'grok-2',
-                      GROQ: 'llama-3.3-70b-versatile',
-                    };
-                    return (
-                      <button
-                        type="button"
-                        key={prov}
-                        onClick={() =>
-                          setGatewayConfig({
-                            ...gatewayConfig,
-                            active_provider: prov,
-                            model_name: defaultModels[prov] || gatewayConfig.model_name,
-                          })
-                        }
-                        className={`p-3 text-left rounded-lg border transition-all ${
-                          gatewayConfig.active_provider === prov
-                            ? 'bg-tcs-blue/20 border-tcs-blue text-white font-bold'
-                            : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-muted'
+          {/* Claves Configuradas Activas */}
+          <div className="bg-tcs-card border border-tcs-border rounded-2xl p-5 shadow space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Estado de Credenciales Almacenadas
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
+                const info = vaultStatus[prov];
+                const isConf = info?.configured;
+                return (
+                  <div key={prov} className="p-3 bg-tcs-dark border border-tcs-border rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-white">{prov}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                          isConf
+                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
+                            : 'bg-slate-900 text-tcs-muted border border-tcs-border'
                         }`}
                       >
-                        <div className="text-xs font-bold">{prov}</div>
-                        <div className="text-[10px] text-emerald-400">Motor LLM en Vivo</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-tcs-muted mb-1">Nombre del Modelo LLM</label>
-                <input
-                  type="text"
-                  required
-                  value={gatewayConfig.model_name}
-                  onChange={(e) => setGatewayConfig({ ...gatewayConfig, model_name: e.target.value })}
-                  placeholder="ej. gemini-1.5-flash, gpt-4o, claude-3-5-sonnet-20241022, deepseek-chat"
-                  className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue font-mono"
-                />
-                <span className="text-[10px] text-tcs-muted mt-1 block">
-                  Ingesta directa del modelo según el proveedor seleccionado (sin intermediarios de modos de consumo).
-                </span>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 bg-tcs-blue hover:bg-tcs-accent text-white text-xs font-semibold rounded transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Guardando...' : 'Aplicar Cambio en Caliente'}
-              </button>
-            </form>
+                        {isConf ? 'ACTIVO' : 'SIN LLAVE'}
+                      </span>
+                    </div>
+                    {isConf && (
+                      <div className="flex items-center justify-between pt-1 border-t border-tcs-border/40">
+                        <span className="text-[10px] font-mono text-tcs-muted">{info?.masked_key || '••••••••'}</span>
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => handleTestKey(prov)}
+                          className="text-[10px] text-tcs-cyan hover:underline"
+                        >
+                          Probar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

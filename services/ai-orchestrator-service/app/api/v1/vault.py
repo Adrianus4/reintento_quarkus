@@ -42,6 +42,115 @@ def get_vault_status(
     return {"providers": providers}
 
 
+@router.post("/direct-key")
+def setup_direct_key(
+    payload: dict,
+    user: dict = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Setup and activate an API Key directly with zero gateway configuration."""
+    api_key = payload.get("api_key", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Debe ingresar una API Key válida.")
+
+    model_name = payload.get("model_name", "").strip() or None
+    provider = payload.get("provider", "").strip().lower()
+
+    # Auto-detect provider if not explicitly given
+    if not provider or provider == "auto":
+        if api_key.startswith("AIzaSy"):
+            provider = "gemini"
+            model_name = model_name or "gemini-1.5-flash"
+        elif api_key.startswith("sk-ant"):
+            provider = "anthropic"
+            model_name = model_name or "claude-3-5-sonnet-20241022"
+        elif api_key.startswith("gsk_"):
+            provider = "groq"
+            model_name = model_name or "llama-3.3-70b-versatile"
+        elif api_key.startswith("sk-"):
+            provider = "openai"
+            model_name = model_name or "gpt-4o"
+        else:
+            provider = "openai"
+            model_name = model_name or "gpt-4o"
+
+    t0 = time.time()
+    try:
+        if provider == "gemini":
+            from app.llm.gemini_client import GeminiClient
+            client = GeminiClient(api_key=api_key, model_name=model_name)
+        elif provider == "anthropic":
+            from app.llm.anthropic_client import AnthropicClient
+            client = AnthropicClient(api_key=api_key, model_name=model_name)
+        else:
+            from app.llm.openai_compat import OpenAICompatClient
+            client = OpenAICompatClient(provider=provider, api_key=api_key, model_name=model_name)
+
+        conn_res = client.test_connection()
+        if isinstance(conn_res, tuple):
+            is_connected, msg = conn_res
+        else:
+            is_connected = bool(conn_res)
+            msg = "Conexión exitosa" if is_connected else f"Fallo de autenticación con {provider}"
+
+        latency = int((time.time() - t0) * 1000)
+
+        if not is_connected:
+            return {
+                "success": False,
+                "provider": provider.upper(),
+                "model_name": model_name,
+                "latency_ms": latency,
+                "message": msg,
+            }
+
+        encrypted = encrypt_secret(api_key)
+        masked = mask_secret(api_key)
+
+        existing = db.query(VaultCredential).filter(VaultCredential.provider == provider).first()
+        if existing:
+            existing.encrypted_key = encrypted
+            existing.masked_key = masked
+            existing.is_active = True
+        else:
+            existing = VaultCredential(
+                provider=provider,
+                encrypted_key=encrypted,
+                masked_key=masked,
+                is_active=True,
+            )
+            db.add(existing)
+
+        from app.models.gateway_config import GatewayConfig
+        cfg = db.query(GatewayConfig).first()
+        if cfg:
+            cfg.active_provider = provider
+            cfg.model_name = model_name
+        else:
+            cfg = GatewayConfig(active_provider=provider, model_name=model_name)
+            db.add(cfg)
+
+        db.commit()
+
+        return {
+            "success": True,
+            "provider": provider.upper(),
+            "model_name": model_name,
+            "masked_key": masked,
+            "latency_ms": latency,
+            "message": f"API Key verificada y activada exitosamente para {provider.upper()} ({model_name}).",
+        }
+    except Exception as exc:
+        latency = int((time.time() - t0) * 1000)
+        return {
+            "success": False,
+            "provider": provider.upper(),
+            "model_name": model_name,
+            "latency_ms": latency,
+            "message": f"Error conectando con {provider}: {str(exc)}",
+        }
+
+
 @router.post("/keys", response_model=VaultKeyResponse, status_code=status.HTTP_201_CREATED)
 def save_vault_key(
     payload: VaultKeySaveRequest,
