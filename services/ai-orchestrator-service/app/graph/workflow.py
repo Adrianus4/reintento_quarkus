@@ -7,6 +7,7 @@ from app.graph.nodes import (
     generate_domain_node,
     generate_scaffolding_node,
     generate_tests_node,
+    synthesize_and_guarantee_node,
 )
 from app.graph.state import JobState
 from app.llm.base import BaseLLMClient
@@ -24,7 +25,7 @@ class GenerationWorkflow:
         llm: BaseLLMClient = None,
         token: str = None
     ) -> JobState:
-        """Run sequential LangGraph execution pipeline."""
+        """Run sequential LangGraph execution pipeline with deterministic quality guarantee."""
         state: JobState = {
             "job_id": job_id,
             "user_id": user_id,
@@ -50,7 +51,7 @@ class GenerationWorkflow:
             # 2. Design Blueprint
             state = design_blueprint_node(state, llm)
 
-            # 3. Generate Scaffolding (pom.xml or build.gradle, CI/CD, properties)
+            # 3. Generate Scaffolding (pom.xml, CI/CD, properties)
             state = generate_scaffolding_node(state, llm)
 
             # 4. Generate Domain & REST Resources
@@ -58,6 +59,9 @@ class GenerationWorkflow:
 
             # 5. Generate Automated Tests (JUnit 5 + @QuarkusTest)
             state = generate_tests_node(state, llm)
+
+            # 6. Deterministic Architectural Synthesis & Quality Guarantee Engine
+            state = synthesize_and_guarantee_node(state)
 
             state["status"] = "AWAITING_REVIEW"
         except Exception as exc:

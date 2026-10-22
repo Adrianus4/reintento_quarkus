@@ -35,7 +35,7 @@ def extract_and_parse_json(text: str) -> Dict[str, Any]:
         pass
 
     # 3. Clean trailing commas (e.g. ", }" or ", ]")
-    repaired = re.sub(r",\s*([\}\]])", r"", cleaned)
+    repaired = re.sub(r",\s*([\}\]])", r"\1", cleaned)
 
     try:
         return json.loads(repaired)

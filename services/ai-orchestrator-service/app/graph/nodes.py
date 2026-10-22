@@ -4,6 +4,7 @@ from typing import Any, Dict
 import httpx
 from app.core.config import settings
 from app.core.parser import extract_and_parse_json
+from app.core.synthesizer import CodeSynthesizer
 from app.graph.state import JobState
 from app.llm.base import BaseLLMClient
 
@@ -30,8 +31,8 @@ def fetch_governance_node(state: JobState, token: str) -> JobState:
                     "client": {
                         "code": client_code,
                         "name": client_code.upper(),
-                        "package_prefix": f"com.tcs.{client_code}",
-                        "java_version": "17",
+                        "package_prefix": f"pe.com.{client_code}",
+                        "java_version": "21",
                         "quarkus_version": "3.15.1"
                     },
                     "mandatory_directives": [],
@@ -43,8 +44,8 @@ def fetch_governance_node(state: JobState, token: str) -> JobState:
             "client": {
                 "code": client_code,
                 "name": client_code.upper(),
-                "package_prefix": f"com.tcs.{client_code}",
-                "java_version": "17",
+                "package_prefix": f"pe.com.{client_code}",
+                "java_version": "21",
                 "quarkus_version": "3.15.1"
             },
             "mandatory_directives": [],
@@ -66,8 +67,8 @@ def design_blueprint_node(state: JobState, llm: BaseLLMClient) -> JobState:
         "Analyze the requirements, OpenAPI contract, and client governance guidelines. "
         "ARCHITECTURAL RULES:\n"
         "1. NO ONE-SIZE-FITS-ALL: Respect the user's selected architecture, security, database, and extensions choices.\n"
-        "2. STRICTLY ENFORCE MANDATORY DIRECTIVES: Enforce mandatory policies (Java 17/21, Quarkus Core, ArC CDI, RESTEasy Reactive, Quarkus Security, JUnit 5 / @QuarkusTest).\n"
-        "3. ZERO OVER-ENGINEERING & 100% STATELESS: If the user selects NO database ('NONE' or stateless), you MUST NOT include Hibernate, Panache, JDBC, or any persistence libraries. The microservice must be strictly 100% stateless.\n"
+        "2. STRICTLY ENFORCE MANDATORY DIRECTIVES: Enforce mandatory policies (Java 21, Quarkus 3.15, ArC CDI, RESTEasy Reactive, Quarkus Security, JUnit 5 / @QuarkusTest).\n"
+        "3. ZERO OVER-ENGINEERING & 100% STATELESS: If the user selects NO database ('NONE' or stateless), you MUST NOT include Hibernate, Panache, JDBC, or any persistence libraries.\n"
         "4. DETERMINISTIC VALIDATION: Ensure all package prefixes and dependency coordinates conform to client governance.\n"
         "5. ZERO ERRORS IN QUARKUS: The generated project must be free of syntax, dependency, or compilation errors.\n"
         "Output ONLY a valid JSON object defining: architecture_style, quarkus_version, java_version, "
@@ -146,10 +147,14 @@ def design_blueprint_node(state: JobState, llm: BaseLLMClient) -> JobState:
 def generate_scaffolding_node(state: JobState, llm: BaseLLMClient) -> JobState:
     """AI agent generates pom.xml, application.properties, and CI/CD workflow."""
     system_prompt = (
-        "SCAFFOLDING_NODE: You are an enterprise DevSecOps and Java Scaffolding Engineer at Tata Consultancy Services (TCS). "
-        "Generate pom.xml with Quarkus 3.x BOM and strictly requested dependencies (if stateless with no database, strictly ZERO Hibernate, Panache, or JDBC dependencies), "
-        "application.properties (with zero hardcoded secrets; using environment variable placeholders), "
-        "and .github/workflows/ci.yml with automated deterministic verification in Docker/Maven ('mvn -B clean test'). "
+        "SCAFFOLDING_NODE: You are an enterprise DevSecOps and Java Scaffolding Engineer at Tata Consultancy Services (TCS).\n"
+        "Generate:\n"
+        "1. pom.xml: Quarkus 3.15 BOM, Java 21, quarkus-resteasy-reactive-jackson, quarkus-hibernate-validator, "
+        "quarkus-smallrye-openapi, quarkus-smallrye-jwt, quarkus-smallrye-health, quarkus-hibernate-orm-panache, "
+        "and under test scope: quarkus-junit5, quarkus-junit5-mockito, rest-assured, quarkus-test-security-jwt, quarkus-jdbc-h2, smallrye-jwt-build.\n"
+        "2. src/main/resources/application.properties: Multi-profile config with %dev,test using in-memory H2 (jdbc:h2:mem:default) "
+        "with drop-and-create and sql-load-script=import.sql, and %prod using target database (MSSQL/Postgres) with environment variable placeholders.\n"
+        "3. .github/workflows/ci.yml: Automated deterministic verification running 'mvn -B clean verify'.\n"
         "Output ONLY a JSON object with a 'files' map containing relative file paths as keys and file contents as values."
     )
     user_prompt = (
@@ -171,10 +176,18 @@ def generate_scaffolding_node(state: JobState, llm: BaseLLMClient) -> JobState:
 
 
 def generate_domain_node(state: JobState, llm: BaseLLMClient) -> JobState:
-    """AI agent generates domain models, ports/interfaces, and REST resources."""
+    """AI agent generates domain models, ports/interfaces, and REST resources following strict Hexagonal rules."""
     system_prompt = (
-        "DOMAIN_CODE_NODE: You are a Senior Java and Quarkus Developer. "
-        "Implement clean domain models, DTOs, and REST resources following the blueprint architecture. "
+        "DOMAIN_CODE_NODE: You are a Senior Java and Quarkus Developer.\n"
+        "STRICT HEXAGONAL ARCHITECTURE RULES:\n"
+        "1. Inbound Ports / UseCases: Each UseCase interface in 'domain.port.in' MUST have a distinct, semantic method name: "
+        "'create(Entity e)', 'getById(UUID id)', 'search(String query, String status, int page, int size)', "
+        "'update(UUID id, Entity e)', 'delete(UUID id)'. NEVER declare generic execute(UUID) with different return types in multiple interfaces.\n"
+        "2. Outbound Ports in 'domain.port.out': Repository interfaces MUST live in 'domain.port.out' (NEVER 'domain.repository').\n"
+        "3. Application Service: Implements all inbound UseCases, injects outbound ports, and is annotated with @ApplicationScoped and @Transactional.\n"
+        "4. REST Controller in 'adapter.in.web': JAX-RS Resource with @Path, @Valid on request bodies, @RolesAllowed, OpenAPI annotations (@Tag, @Operation, @APIResponse).\n"
+        "5. Uniform ExceptionMappers in 'adapter.in.web.mapper': ErrorResponse and mappers for 400 (ConstraintViolation), 404 (ResourceNotFound), 409 (BusinessConflict), and 500 (Global Exception).\n"
+        "6. Outbound Adapters in 'adapter.out.persistence': For EVERY outbound port, provide PanacheEntity, PanacheRepositoryBase, and @ApplicationScoped Adapter. In save(), check if entity exists to update managed entity fields; do NOT call persist() on existing IDs.\n"
         "Output ONLY a JSON object with a 'files' map containing relative file paths and complete Java code."
     )
     user_prompt = (
@@ -196,10 +209,13 @@ def generate_domain_node(state: JobState, llm: BaseLLMClient) -> JobState:
 
 
 def generate_tests_node(state: JobState, llm: BaseLLMClient) -> JobState:
-    """AI agent generates JUnit 5 unit tests and @QuarkusTest API tests."""
+    """AI agent generates JUnit 5 unit tests with Mockito and @QuarkusTest integration tests with @TestSecurity."""
     system_prompt = (
-        "TESTS_NODE: You are an enterprise QA and Automation Engineer. "
-        "Generate automated tests using JUnit 5 and @QuarkusTest with REST-assured. "
+        "TESTS_NODE: You are an enterprise QA and Automation Engineer.\n"
+        "TESTING RULES:\n"
+        "1. Service Unit Tests: Use @QuarkusTest and Mockito (@InjectMock) to mock all outbound ports. Align method names with the UseCases.\n"
+        "2. REST Integration Tests: Use @QuarkusTest, RestAssured, and @TestSecurity(user='...', roles={'ADMIN'}) for role verification. Use valid seed data.\n"
+        "3. HealthCheckTest: Ensure GET /q/health returns 200 OK with UP.\n"
         "Output ONLY a JSON object with a 'files' map containing test files."
     )
     user_prompt = (
@@ -221,6 +237,15 @@ def generate_tests_node(state: JobState, llm: BaseLLMClient) -> JobState:
     cost = (state["prompt_tokens"] * 0.00000030) + (state["completion_tokens"] * 0.00000120)
     state["cost_usd"] = round(cost, 6)
 
-    state["status"] = "AWAITING_REVIEW"
+    state["status"] = "TESTS_GENERATED"
     return state
 
+
+def synthesize_and_guarantee_node(state: JobState) -> JobState:
+    """
+    Deterministic synthesis and quality guarantee engine.
+    Ensures 100% buildable, runnable, and tested Quarkus microservice regardless of LLM variance.
+    """
+    state = CodeSynthesizer.guarantee_project(state)
+    state["status"] = "AWAITING_REVIEW"
+    return state
