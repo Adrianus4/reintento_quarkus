@@ -22,8 +22,8 @@ export const AdminPanel: React.FC = () => {
   const [vaultKeyProvider, setVaultKeyProvider] = useState<AiProvider>('GEMINI');
   const [vaultApiKey, setVaultApiKey] = useState('');
   const [gatewayConfig, setGatewayConfig] = useState<{ active_provider: AiProvider; model_name: string }>({
-    active_provider: 'MOCK',
-    model_name: 'mock-fast',
+    active_provider: 'GEMINI',
+    model_name: 'gemini-1.5-flash',
   });
   const [testResult, setTestResult] = useState<{ provider: string; status: string; message: string } | null>(null);
 
@@ -66,8 +66,8 @@ export const AdminPanel: React.FC = () => {
       setVaultStatus(vStatus.providers || {});
       const gConfig = await api.orchestrator.getGatewayConfig();
       setGatewayConfig({
-        active_provider: (gConfig.active_provider ? gConfig.active_provider.toUpperCase() : 'MOCK') as AiProvider,
-        model_name: gConfig.model_name || 'gemini-2.5-flash',
+        active_provider: (gConfig.active_provider ? gConfig.active_provider.toUpperCase() : 'GEMINI') as AiProvider,
+        model_name: gConfig.model_name || 'gemini-1.5-flash',
       });
     } catch (err: any) {
       showFeedback('error', 'Error al cargar bóveda de IA: ' + err.message);
@@ -532,10 +532,10 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             {/* Providers Status Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              {(['GEMINI', 'DEEPSEEK', 'GROK', 'MOCK'] as AiProvider[]).map((prov) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
                 const info = vaultStatus[prov];
-                const isConf = prov === 'MOCK' ? true : info?.configured;
+                const isConf = info?.configured;
                 return (
                   <div key={prov} className="p-3 bg-tcs-dark border border-tcs-border rounded-lg">
                     <div className="flex items-center justify-between mb-1">
@@ -550,21 +550,19 @@ export const AdminPanel: React.FC = () => {
                         {isConf ? 'CONFIGURADO' : 'PENDIENTE'}
                       </span>
                     </div>
-                    {prov !== 'MOCK' && (
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-[10px] font-mono text-tcs-muted">
-                          {info?.masked_key || '••••••••'}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={!isConf || loading}
-                          onClick={() => handleTestKey(prov)}
-                          className="text-[10px] px-2 py-0.5 bg-tcs-surface border border-tcs-border rounded text-tcs-cyan hover:border-tcs-cyan disabled:opacity-30"
-                        >
-                          Probar
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[10px] font-mono text-tcs-muted">
+                        {info?.masked_key || '••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!isConf || loading}
+                        onClick={() => handleTestKey(prov)}
+                        className="text-[10px] px-2 py-0.5 bg-tcs-surface border border-tcs-border rounded text-tcs-cyan hover:border-tcs-cyan disabled:opacity-30"
+                      >
+                        Probar
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -592,8 +590,13 @@ export const AdminPanel: React.FC = () => {
                   className="px-2 py-1.5 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue"
                 >
                   <option value="GEMINI">GEMINI</option>
+                  <option value="OPENAI">OPENAI</option>
+                  <option value="ANTHROPIC">ANTHROPIC</option>
                   <option value="DEEPSEEK">DEEPSEEK</option>
                   <option value="GROK">GROK</option>
+                  <option value="GROQ">GROQ</option>
+                  <option value="OPENROUTER">OPENROUTER</option>
+                  <option value="OLLAMA">OLLAMA</option>
                 </select>
                 <input
                   type="password"
@@ -629,24 +632,38 @@ export const AdminPanel: React.FC = () => {
             <form onSubmit={handleUpdateGateway} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-tcs-muted mb-1">Proveedor Activo</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['MOCK', 'GEMINI', 'DEEPSEEK', 'GROK'] as AiProvider[]).map((prov) => (
-                    <button
-                      type="button"
-                      key={prov}
-                      onClick={() => setGatewayConfig({ ...gatewayConfig, active_provider: prov })}
-                      className={`p-3 text-left rounded-lg border transition-all ${
-                        gatewayConfig.active_provider === prov
-                          ? 'bg-tcs-blue/20 border-tcs-blue text-white'
-                          : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-muted'
-                      }`}
-                    >
-                      <div className="text-xs font-bold">{prov}</div>
-                      <div className="text-[10px] text-tcs-muted">
-                        {prov === 'MOCK' ? 'Determinista offline' : 'Motor LLM en Vivo'}
-                      </div>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {(['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK', 'GROQ'] as AiProvider[]).map((prov) => {
+                    const defaultModels: Record<string, string> = {
+                      GEMINI: 'gemini-1.5-flash',
+                      OPENAI: 'gpt-4o',
+                      ANTHROPIC: 'claude-3-5-sonnet-20241022',
+                      DEEPSEEK: 'deepseek-chat',
+                      GROK: 'grok-2',
+                      GROQ: 'llama-3.3-70b-versatile',
+                    };
+                    return (
+                      <button
+                        type="button"
+                        key={prov}
+                        onClick={() =>
+                          setGatewayConfig({
+                            ...gatewayConfig,
+                            active_provider: prov,
+                            model_name: defaultModels[prov] || gatewayConfig.model_name,
+                          })
+                        }
+                        className={`p-3 text-left rounded-lg border transition-all ${
+                          gatewayConfig.active_provider === prov
+                            ? 'bg-tcs-blue/20 border-tcs-blue text-white font-bold'
+                            : 'bg-tcs-dark border-tcs-border text-tcs-muted hover:border-tcs-muted'
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{prov}</div>
+                        <div className="text-[10px] text-emerald-400">Motor LLM en Vivo</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -657,7 +674,7 @@ export const AdminPanel: React.FC = () => {
                   required
                   value={gatewayConfig.model_name}
                   onChange={(e) => setGatewayConfig({ ...gatewayConfig, model_name: e.target.value })}
-                  placeholder="ej. gemini-2.5-flash, deepseek-chat, grok-beta, mock-fast"
+                  placeholder="ej. gemini-1.5-flash, gpt-4o, claude-3-5-sonnet-20241022, deepseek-chat"
                   className="w-full px-3 py-2 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue font-mono"
                 />
                 <span className="text-[10px] text-tcs-muted mt-1 block">

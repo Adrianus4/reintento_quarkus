@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI):
         config = db.query(GatewayConfig).first()
         if not config:
             config = GatewayConfig(
-                active_provider="mock",
-                model_name="mock-fast",
+                active_provider="gemini",
+                model_name="gemini-1.5-flash",
                 consumption_mode="balanced",
                 temperature=0.2,
                 max_tokens=8192,

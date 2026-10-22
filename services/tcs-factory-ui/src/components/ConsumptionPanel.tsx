@@ -26,7 +26,18 @@ export const ConsumptionPanel: React.FC = () => {
     fetchTelemetry();
   }, []);
 
-  const filteredRecords = (telemetry?.recent_records || []).filter((rec: ConsumptionRecord) => {
+  // Strict Live AI Filter: Exclude all legacy mock records from telemetry
+  const allRecords = (telemetry?.recent_records || []).filter(
+    (rec: ConsumptionRecord) => (rec.provider || '').toLowerCase() !== 'mock'
+  );
+
+  const totalTokens = allRecords.reduce((acc, r) => acc + (r.total_tokens || 0), 0);
+  const promptTokens = allRecords.reduce((acc, r) => acc + (r.prompt_tokens || 0), 0);
+  const completionTokens = allRecords.reduce((acc, r) => acc + (r.completion_tokens || 0), 0);
+  const totalCost = allRecords.reduce((acc, r) => acc + (r.cost_usd || 0), 0);
+  const totalJobs = allRecords.length;
+
+  const filteredRecords = allRecords.filter((rec: ConsumptionRecord) => {
     if (selectedProviderFilter === 'ALL') return true;
     return (rec.provider || '').toUpperCase() === selectedProviderFilter.toUpperCase();
   });
@@ -64,7 +75,7 @@ export const ConsumptionPanel: React.FC = () => {
         <div className="bg-tcs-card border border-tcs-border rounded-xl p-4 shadow">
           <div className="text-[11px] font-bold text-tcs-muted uppercase tracking-wider">Total Tokens Consumidos</div>
           <div className="text-2xl font-black text-white mt-2 font-mono">
-            {(telemetry?.total_tokens ?? 0).toLocaleString()}
+            {totalTokens.toLocaleString()}
           </div>
           <div className="text-[10px] text-tcs-muted mt-1">Acumulado en todos los proyectos</div>
         </div>
@@ -72,7 +83,7 @@ export const ConsumptionPanel: React.FC = () => {
         <div className="bg-tcs-card border border-tcs-border rounded-xl p-4 shadow">
           <div className="text-[11px] font-bold text-tcs-muted uppercase tracking-wider">Tokens Entrada (Prompt)</div>
           <div className="text-2xl font-black text-tcs-cyan mt-2 font-mono">
-            {(telemetry?.prompt_tokens ?? 0).toLocaleString()}
+            {promptTokens.toLocaleString()}
           </div>
           <div className="text-[10px] text-tcs-muted mt-1">Contexto & directivas de gobierno</div>
         </div>
@@ -80,7 +91,7 @@ export const ConsumptionPanel: React.FC = () => {
         <div className="bg-tcs-card border border-tcs-border rounded-xl p-4 shadow">
           <div className="text-[11px] font-bold text-tcs-muted uppercase tracking-wider">Tokens Generados (Output)</div>
           <div className="text-2xl font-black text-emerald-400 mt-2 font-mono">
-            {(telemetry?.completion_tokens ?? 0).toLocaleString()}
+            {completionTokens.toLocaleString()}
           </div>
           <div className="text-[10px] text-tcs-muted mt-1">Microservicios y artefactos Quarkus</div>
         </div>
@@ -88,10 +99,10 @@ export const ConsumptionPanel: React.FC = () => {
         <div className="bg-tcs-card border border-tcs-border rounded-xl p-4 shadow">
           <div className="text-[11px] font-bold text-tcs-muted uppercase tracking-wider">Costo Estimado USD</div>
           <div className="text-2xl font-black text-amber-400 mt-2 font-mono">
-            ${(telemetry?.total_cost_usd ?? 0).toFixed(4)}
+            ${totalCost.toFixed(4)}
           </div>
           <div className="text-[10px] text-tcs-muted mt-1">
-            {telemetry?.total_jobs ?? 0} trabajos procesados
+            {totalJobs} trabajos procesados
           </div>
         </div>
       </div>
@@ -106,7 +117,7 @@ export const ConsumptionPanel: React.FC = () => {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {['GEMINI', 'DEEPSEEK', 'GROK', 'MOCK'].map((prov) => {
+          {['GEMINI', 'OPENAI', 'ANTHROPIC', 'DEEPSEEK', 'GROK'].map((prov) => {
             const data = telemetry?.by_provider?.[prov] || telemetry?.by_provider?.[prov.toLowerCase()];
             const tokens = data?.total_tokens || 0;
             const prompt = data?.prompt_tokens || 0;
@@ -172,11 +183,12 @@ export const ConsumptionPanel: React.FC = () => {
               onChange={(e) => setSelectedProviderFilter(e.target.value)}
               className="px-2.5 py-1 bg-tcs-dark border border-tcs-border rounded text-xs text-white focus:outline-none focus:border-tcs-blue"
             >
-              <option value="ALL">Todos los Proveedores</option>
+              <option value="ALL">Todos los Proveedores (En Vivo)</option>
               <option value="GEMINI">Gemini</option>
+              <option value="OPENAI">OpenAI</option>
+              <option value="ANTHROPIC">Anthropic</option>
               <option value="DEEPSEEK">DeepSeek</option>
               <option value="GROK">Grok</option>
-              <option value="MOCK">Mock</option>
             </select>
           </div>
         </div>

@@ -111,14 +111,20 @@ def test_vault_connection(
             from app.llm.openai_compat import OpenAICompatClient
             client = OpenAICompatClient(provider=provider_clean, api_key=api_key, model_name=payload.model_name, base_url=payload.base_url)
 
-        is_connected = client.test_connection()
+        conn_res = client.test_connection()
+        if isinstance(conn_res, tuple):
+            is_connected, msg = conn_res
+        else:
+            is_connected = bool(conn_res)
+            msg = "Conexión verificada exitosamente con el proveedor de IA" if is_connected else f"Fallo de autenticación con {provider_clean}: Verifique su API Key o cuota"
+
         latency = int((time.time() - t0) * 1000)
 
         return TestConnectionResponse(
             provider=provider_clean,
             connected=is_connected,
             latency_ms=latency,
-            message="Conexión verificada exitosamente con el proveedor de IA" if is_connected else "Fallo de autenticación: Verifique su API Key o cuota"
+            message=msg
         )
     except Exception as exc:
         latency = int((time.time() - t0) * 1000)
