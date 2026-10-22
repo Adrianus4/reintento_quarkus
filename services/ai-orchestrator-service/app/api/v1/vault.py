@@ -56,9 +56,25 @@ def setup_direct_key(
     model_name = payload.get("model_name", "").strip() or None
     provider = payload.get("provider", "").strip().lower()
 
-    # Auto-detect provider if not explicitly given
-    if not provider or provider == "auto":
-        if api_key.startswith("AIzaSy"):
+    # Prioritize user explicit selection (GEMINI, DEEPSEEK, OPENAI, ANTHROPIC, etc.)
+    valid_providers = ["deepseek", "gemini", "openai", "anthropic", "grok", "groq", "openrouter", "ollama"]
+    if provider in valid_providers:
+        if provider == "deepseek" and not model_name:
+            model_name = "deepseek-chat"
+        elif provider == "gemini" and not model_name:
+            model_name = "gemini-1.5-flash"
+        elif provider == "openai" and not model_name:
+            model_name = "gpt-4o"
+        elif provider == "anthropic" and not model_name:
+            model_name = "claude-3-5-sonnet-20241022"
+        elif provider == "groq" and not model_name:
+            model_name = "llama-3.3-70b-versatile"
+    else:
+        # Auto-detect from key or model name if omitted
+        if "deepseek" in (model_name or "").lower():
+            provider = "deepseek"
+            model_name = model_name or "deepseek-chat"
+        elif api_key.startswith("AIzaSy"):
             provider = "gemini"
             model_name = model_name or "gemini-1.5-flash"
         elif api_key.startswith("sk-ant"):
@@ -67,9 +83,12 @@ def setup_direct_key(
         elif api_key.startswith("gsk_"):
             provider = "groq"
             model_name = model_name or "llama-3.3-70b-versatile"
-        elif api_key.startswith("sk-"):
-            provider = "openai"
-            model_name = model_name or "gpt-4o"
+        elif "gemini" in (model_name or "").lower():
+            provider = "gemini"
+            model_name = model_name or "gemini-1.5-flash"
+        elif "claude" in (model_name or "").lower():
+            provider = "anthropic"
+            model_name = model_name or "claude-3-5-sonnet-20241022"
         else:
             provider = "openai"
             model_name = model_name or "gpt-4o"

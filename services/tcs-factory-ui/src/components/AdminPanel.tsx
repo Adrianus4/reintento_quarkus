@@ -184,16 +184,35 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-    const handleDirectKeySetup = async (e: React.FormEvent) => {
+      const PROVIDER_MODELS: Record<string, string[]> = {
+    GEMINI: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'],
+    DEEPSEEK: ['deepseek-chat', 'deepseek-coder'],
+    OPENAI: ['gpt-4o', 'gpt-4o-mini'],
+    ANTHROPIC: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+    GROQ: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
+  };
+
+  const handleSelectProvider = (prov: AiProvider) => {
+    setVaultKeyProvider(prov);
+    const defaultModel = PROVIDER_MODELS[prov] ? PROVIDER_MODELS[prov][0] : 'gemini-1.5-flash';
+    setGatewayConfig((prev) => ({
+      ...prev,
+      active_provider: prov,
+      model_name: defaultModel,
+    }));
+  };
+
+  const handleDirectKeySetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vaultApiKey) return;
+    const key = vaultApiKey.trim();
+    if (!key) return;
     setLoading(true);
     setTestResult(null);
     try {
       const res = await (api.orchestrator as any).setupDirectKey({
-        api_key: vaultApiKey,
+        api_key: key,
         model_name: gatewayConfig.model_name || undefined,
-        provider: vaultKeyProvider !== 'GEMINI' ? vaultKeyProvider.toLowerCase() : undefined,
+        provider: vaultKeyProvider.toLowerCase(),
       });
       if (res.success) {
         showFeedback('success', res.message || 'API Key configurada y activada con éxito.');
@@ -587,34 +606,96 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleDirectKeySetup} className="space-y-4">
+            <form onSubmit={handleDirectKeySetup} className="space-y-5">
+              {/* Selector explícito de Proveedor */}
               <div>
-                <label className="block text-xs font-bold text-gray-200 mb-1">
-                  1. Clave de API (API Key)
+                <label className="block text-xs font-bold text-gray-200 mb-2">
+                  1. Proveedor de IA Destino (Selecciona antes de pegar la clave)
                 </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {(['DEEPSEEK', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'GROQ'] as AiProvider[]).map((prov) => {
+                    const isSelected = vaultKeyProvider === prov;
+                    const isConf = vaultStatus[prov]?.configured;
+                    return (
+                      <button
+                        key={prov}
+                        type="button"
+                        onClick={() => handleSelectProvider(prov)}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center border transition-all ${
+                          isSelected
+                            ? 'bg-tcs-blue/30 border-tcs-cyan text-white shadow-md shadow-cyan-950/50 ring-1 ring-tcs-cyan'
+                            : 'bg-tcs-dark/70 border-tcs-border text-tcs-muted hover:text-white hover:border-gray-500'
+                        }`}
+                      >
+                        <span className="flex items-center space-x-1">
+                          {prov === 'DEEPSEEK' && <span>🐋</span>}
+                          {prov === 'GEMINI' && <span>🔵</span>}
+                          {prov === 'OPENAI' && <span>🟢</span>}
+                          {prov === 'ANTHROPIC' && <span>🟣</span>}
+                          {prov === 'GROQ' && <span>⚡</span>}
+                          <span>{prov}</span>
+                        </span>
+                        <span className={`text-[9px] mt-0.5 font-mono ${isConf ? 'text-emerald-400' : 'text-gray-500'}`}>
+                          {isConf ? '● Con clave' : '○ Sin clave'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-gray-200">
+                    2. Clave de API ({vaultKeyProvider})
+                  </label>
+                  <span className="text-[11px] font-mono text-tcs-cyan">
+                    Se validará directamente contra {vaultKeyProvider}
+                  </span>
+                </div>
                 <input
                   type="password"
                   required
                   value={vaultApiKey}
-                  onChange={(e) => setVaultApiKey(e.target.value)}
-                  placeholder="Pega tu API Key (ej. AIzaSy..., sk-..., sk-ant-...)"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVaultApiKey(val);
+                    if (val.startsWith('AIzaSy') && vaultKeyProvider !== 'GEMINI') {
+                      handleSelectProvider('GEMINI');
+                    } else if (val.startsWith('sk-ant') && vaultKeyProvider !== 'ANTHROPIC') {
+                      handleSelectProvider('ANTHROPIC');
+                    } else if (val.startsWith('gsk_') && vaultKeyProvider !== 'GROQ') {
+                      handleSelectProvider('GROQ');
+                    }
+                  }}
+                  placeholder={
+                    vaultKeyProvider === 'DEEPSEEK'
+                      ? 'sk-... (Pega aquí tu clave de DeepSeek)'
+                      : vaultKeyProvider === 'GEMINI'
+                      ? 'AIzaSy... (Pega aquí tu clave de Google AI Studio)'
+                      : vaultKeyProvider === 'ANTHROPIC'
+                      ? 'sk-ant-... (Pega aquí tu clave de Anthropic Claude)'
+                      : vaultKeyProvider === 'GROQ'
+                      ? 'gsk_... (Pega aquí tu clave de Groq)'
+                      : 'sk-... (Pega aquí tu clave de OpenAI)'
+                  }
                   className="w-full px-3.5 py-2.5 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:outline-none focus:border-tcs-cyan font-mono"
                 />
                 <p className="text-[11px] text-tcs-muted mt-1">
-                  💡 Autodetección: Si empieza por <code>AIzaSy...</code> se activa Gemini; si empieza por <code>sk-ant...</code> se activa Anthropic; si empieza por <code>sk-...</code> se activa OpenAI.
+                  🔒 Tu clave se prueba inmediatamente y se almacena encriptada en la base de datos local.
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-bold text-gray-200">
-                    2. Modelo LLM (Opcional - se asigna automáticamente según tu clave)
+                    3. Modelo Sugerido para {vaultKeyProvider}
                   </label>
                   <span className="text-[10px] text-tcs-cyan font-mono">Personalizable</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {['gemini-1.5-flash', 'gemini-1.5-pro', 'gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet-20241022', 'deepseek-chat'].map((m) => (
+                  {(PROVIDER_MODELS[vaultKeyProvider] || ['gemini-1.5-flash']).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -634,7 +715,7 @@ export const AdminPanel: React.FC = () => {
                   type="text"
                   value={gatewayConfig.model_name || ''}
                   onChange={(e) => setGatewayConfig({ ...gatewayConfig, model_name: e.target.value })}
-                  placeholder="ej. gemini-1.5-flash, gpt-4o, claude-3-5-sonnet-20241022"
+                  placeholder={`ej. ${(PROVIDER_MODELS[vaultKeyProvider] || ['gemini-1.5-flash'])[0]}`}
                   className="w-full px-3.5 py-2 bg-tcs-dark border border-tcs-border rounded-xl text-xs text-white focus:outline-none focus:border-tcs-cyan font-mono"
                 />
               </div>
@@ -691,7 +772,7 @@ export const AdminPanel: React.FC = () => {
                             type="button"
                             disabled={loading}
                             onClick={() => {
-                              setVaultKeyProvider(prov);
+                              handleSelectProvider(prov);
                               showFeedback('success', `Pega la nueva API Key para ${prov} en el campo superior.`);
                             }}
                             className="text-amber-400 hover:underline font-semibold"

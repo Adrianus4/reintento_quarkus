@@ -23,23 +23,23 @@ DEFAULT_MODELS = {
 
 class OpenAICompatClient(BaseLLMClient):
     def __init__(self, provider: str, api_key: str, mode: str = "balanced", model_name: str = None, base_url: str = None):
-        self.provider = provider.lower().strip()
+        self.provider = provider.lower().strip() if provider else "openai"
         self.api_key = api_key.strip() if api_key else ""
         self.mode = mode
-        
+
         if base_url:
             self.endpoint = base_url.rstrip("/") + "/chat/completions" if not base_url.endswith("/chat/completions") else base_url
         else:
-            self.endpoint = PROVIDER_URLS.get(self.provider, PROVIDER_URLS.get("openai", "https://api.openai.com/v1/chat/completions"))
+            self.endpoint = PROVIDER_URLS.get(self.provider, PROVIDER_URLS["openai"])
 
-        if model_name and model_name.strip() and model_name != "default":
+        if model_name and model_name.strip() and model_name not in ("default", "mock-fast"):
             self.model_name = model_name.strip()
         else:
             self.model_name = DEFAULT_MODELS.get(self.provider, "gpt-4o")
 
-    def test_connection(self) -> bool:
+    def test_connection(self) -> Tuple[bool, str]:
         if not self.api_key and self.provider != "ollama":
-            return False
+            return False, f"La API Key de {self.provider.upper()} está vacía."
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -50,11 +50,18 @@ class OpenAICompatClient(BaseLLMClient):
             "max_tokens": 1
         }
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=15.0) as client:
                 resp = client.post(self.endpoint, json=payload, headers=headers)
-                return resp.status_code in (200, 201)
-        except Exception:
-            return False
+                if resp.status_code in (200, 201):
+                    return True, f"Conexión exitosa con {self.provider.upper()} ({self.model_name})."
+                try:
+                    err_json = resp.json()
+                    err_msg = err_json.get("error", {}).get("message", resp.text)
+                    return False, f"{self.provider.upper()} API error ({resp.status_code}): {err_msg}"
+                except Exception:
+                    return False, f"{self.provider.upper()} error ({resp.status_code}): {resp.text[:150]}"
+        except Exception as exc:
+            return False, f"Error conectando con {self.provider.upper()}: {str(exc)}"
 
     def generate(
         self,
@@ -68,7 +75,7 @@ class OpenAICompatClient(BaseLLMClient):
             "Content-Type": "application/json"
         }
         is_reasoning_model = any(m in self.model_name.lower() for m in ["o1", "o3", "deepseek-reasoner", "r1"])
-        
+
         payload = {
             "model": self.model_name,
             "messages": [
@@ -86,11 +93,20 @@ class OpenAICompatClient(BaseLLMClient):
 
         with httpx.Client(timeout=90.0) as client:
             resp = client.post(self.endpoint, json=payload, headers=headers)
-            # If 400 because response_format is unsupported, retry without response_format
             if resp.status_code == 400 and "response_format" in payload:
                 payload.pop("response_format", None)
                 resp = client.post(self.endpoint, json=payload, headers=headers)
-            resp.raise_for_status()
+
+            if resp.status_code != 200:
+                try:
+                    err_json = resp.json()
+                    err_msg = err_json.get("error", {}).get("message", resp.text)
+                    raise ValueError(f"{self.provider.upper()} API error ({resp.status_code}): {err_msg}")
+                except Exception as inner:
+                    if f"{self.provider.upper()} API error" in str(inner):
+                        raise
+                    resp.raise_for_status()
+
             data = resp.json()
             choices = data.get("choices", [])
             if not choices:
