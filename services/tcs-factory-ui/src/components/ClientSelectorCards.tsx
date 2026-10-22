@@ -74,10 +74,15 @@ export const ClientSelectorCards: React.FC<ClientSelectorCardsProps> = ({
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border border-tcs-border p-6 rounded-2xl shadow-xl relative overflow-hidden">
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-tcs-blue/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="max-w-3xl space-y-2 relative z-10">
-          <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full bg-tcs-blue/20 border border-tcs-blue/40 text-[11px] font-semibold text-tcs-cyan">
-            <span className="w-2 h-2 rounded-full bg-tcs-cyan animate-pulse"></span>
-            <span>CENTRO DE GOBERNANZA CORPORATIVA</span>
+        <div className="max-w-3xl space-y-3 relative z-10">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 rounded-xl bg-black border border-white/20 p-1.5 flex items-center justify-center shadow-md shrink-0">
+              <img src="/tcs-logo.png" alt="TCS Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full bg-tcs-blue/20 border border-tcs-blue/40 text-[11px] font-semibold text-tcs-cyan">
+              <span className="w-2 h-2 rounded-full bg-tcs-cyan animate-pulse"></span>
+              <span>CENTRO DE GOBERNANZA CORPORATIVA TCS</span>
+            </div>
           </div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">
             Cuentas y Clientes Autorizados

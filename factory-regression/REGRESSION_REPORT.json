@@ -1,6 +1,6 @@
 {
   "suite_name": "TCS Quarkus Factory 16-Case Regression",
-  "timestamp": "2026-10-22T11:09:11.051769+00:00",
+  "timestamp": "2026-10-22T12:27:41.729972+00:00",
   "total_cases": 16,
   "metrics": {
     "first_pass_green_count": 14,
@@ -21,7 +21,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -33,7 +33,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -45,7 +45,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -57,7 +57,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -69,7 +69,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -81,7 +81,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -93,7 +93,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -105,7 +105,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -117,7 +117,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -129,7 +129,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -141,7 +141,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -177,7 +177,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -189,7 +189,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false
@@ -201,7 +201,7 @@
       "expected_verdict": "VERDE",
       "actual_verdict": "VERDE",
       "passed": true,
-      "details": "All 5 phases passed. Generated 31 files with determinism.",
+      "details": "All 5 phases passed. Generated 29 files with determinism.",
       "static_gates_passed": true,
       "sandbox_verdict": "PASSED",
       "veto_applied": false

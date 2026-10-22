@@ -216,6 +216,22 @@ class CapabilityCatalog:
         """Deterministically assemble multi-profile application.properties (%dev, %test, %prod)."""
         gov = spec.get("governance_ref", {})
         client_code = gov.get("client_code", "bcp").lower()
+        artifact_id = spec.get("service", {}).get("name", f"{client_code}-microservice")
+
+        db_kind = "postgresql"
+        for ob in spec.get("outbound", []):
+            if ob.get("kind") == "database":
+                t = ob.get("details", {}).get("db_type", "") or ob.get("details", {}).get("type", "")
+                if "mssql" in t.lower() or "sqlserver" in t.lower():
+                    db_kind = "mssql"
+                elif "postgres" in t.lower():
+                    db_kind = "postgresql"
+
+        prod_jdbc_url = (
+            f"jdbc:sqlserver://localhost:1433;databaseName={client_code}_db;encrypt=false"
+            if db_kind == "mssql"
+            else f"jdbc:postgresql://localhost:5432/{client_code}_db"
+        )
 
         props = f"""# ==============================================================================
 # TCS QUARKUS FACTORY - DETERMINISTIC MULTI-PROFILE CONFIGURATION
@@ -225,7 +241,7 @@ class CapabilityCatalog:
 quarkus.http.port=8080
 quarkus.http.cors=true
 quarkus.log.level=INFO
-quarkus.application.name={client_code}-microservice
+quarkus.application.name={artifact_id}
 
 # SmallRye OpenAPI & Health
 quarkus.smallrye-openapi.path=/q/openapi
@@ -238,28 +254,30 @@ quarkus.smallrye-health.root-path=/q/health
 # ==============================================================================
 # Local Dev Profile
 %dev.quarkus.datasource.db-kind=h2
-%dev.quarkus.datasource.jdbc.url=jdbc:h2:mem:devdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+%dev.quarkus.datasource.jdbc.url=jdbc:h2:mem:devdb;DB_CLOSE_DELAY=-1
 %dev.quarkus.datasource.username=sa
 %dev.quarkus.datasource.password=sa
 %dev.quarkus.hibernate-orm.database.generation=drop-and-create
 %dev.quarkus.hibernate-orm.sql-load-script=import.sql
 %dev.mp.jwt.verify.publickey.location=publicKey.pem
+%dev.quarkus.kafka.devservices.enabled=false
 
 # Test Profile
 %test.quarkus.datasource.db-kind=h2
-%test.quarkus.datasource.jdbc.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+%test.quarkus.datasource.jdbc.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
 %test.quarkus.datasource.username=sa
 %test.quarkus.datasource.password=sa
 %test.quarkus.hibernate-orm.database.generation=drop-and-create
 %test.quarkus.hibernate-orm.sql-load-script=import.sql
 %test.mp.jwt.verify.publickey.location=publicKey.pem
+%test.quarkus.kafka.devservices.enabled=false
 
 # ==============================================================================
 # ENTERPRISE PRODUCTION (%prod)
 # Production configuration utilizing secure environment variables
 # ==============================================================================
-%prod.quarkus.datasource.db-kind=postgresql
-%prod.quarkus.datasource.jdbc.url=${{DB_URL:jdbc:postgresql://localhost:5432/{client_code}_db}}
+%prod.quarkus.datasource.db-kind={db_kind}
+%prod.quarkus.datasource.jdbc.url=${{DB_URL:{prod_jdbc_url}}}
 %prod.quarkus.datasource.username=${{DB_USER:{client_code}_app}}
 %prod.quarkus.datasource.password=${{DB_PASSWORD:secret}}
 %prod.quarkus.hibernate-orm.database.generation=validate

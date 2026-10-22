@@ -117,7 +117,7 @@ class MockLLMClient(BaseLLMClient):
         custom_endpoints = self._extract_json_field(user_prompt, "User Custom Endpoints")
         custom_extensions = self._extract_json_field(user_prompt, "User Custom Free Extensions")
         custom_properties = self._extract_json_field(user_prompt, "User Custom Properties")
-        user_entities = self._extract_json_field(user_prompt, "User Defined Entities")
+        user_entities = self._extract_json_field(user_prompt, "User Defined Entities") or self._extract_json_field(user_prompt, "Configured Entities")
         design_patterns = self._extract_json_field(user_prompt, "User Design Patterns") or ["REPOSITORY", "BUILDER"]
 
         # Parse requirements to infer domain if entities are empty
@@ -126,7 +126,19 @@ class MockLLMClient(BaseLLMClient):
 
         if not user_entities or not isinstance(user_entities, list) or len(user_entities) == 0:
             # Semantic inference from requirement
-            if any(k in req_text or k in art_id for k in ["poliza", "seguro", "insurance", "policy"]):
+            if any(k in req_text or k in art_id for k in ["fraude", "fraud", "reclamo", "disputa"]):
+                entity_name = "FraudClaim"
+                fields = [
+                    {"name": "id", "type": "UUID", "required": True, "isId": True},
+                    {"name": "customerDni", "type": "String", "required": True},
+                    {"name": "maskedCard", "type": "String", "required": True},
+                    {"name": "fraudAmount", "type": "BigDecimal", "required": True},
+                    {"name": "reason", "type": "String", "required": True},
+                    {"name": "observations", "type": "String", "required": False},
+                    {"name": "status", "type": "String", "required": True},
+                    {"name": "createdAt", "type": "LocalDateTime", "required": True},
+                ]
+            elif any(k in req_text or k in art_id for k in ["poliza", "seguro", "insurance", "policy"]):
                 entity_name = "Policy"
                 fields = [
                     {"name": "id", "type": "UUID", "required": True, "isId": True},
@@ -181,6 +193,63 @@ class MockLLMClient(BaseLLMClient):
             entities = [{"name": entity_name, "tableName": f"{entity_name.lower()}s", "fields": fields}]
         else:
             entities = user_entities
+
+        # -------------------------------------------------------------
+        # Node 0: ServiceSpec Builder Prompt
+        # -------------------------------------------------------------
+        if any(k in system_prompt for k in ["ServiceSpec", "Principal Software Architect", "spec_builder"]):
+            ent0 = entities[0] if entities else {"name": "Item", "tableName": "items", "fields": []}
+            spec_dict = {
+                "service": {
+                    "name": artifact_id,
+                    "purpose": req_text or "Enterprise Quarkus microservice with hexagonal architecture",
+                    "archetype_hint": "hexagonal"
+                },
+                "inbound": [
+                    {
+                        "id": "rest-inbound-primary",
+                        "kind": "rest",
+                        "details": {
+                            "path": f"/api/v1/{ent0.get('tableName', 'items')}",
+                            "methods": ["GET", "POST", "PUT", "DELETE"],
+                            "summary": f"Operations for {ent0.get('name', 'Item')}"
+                        }
+                    }
+                ],
+                "outbound": [
+                    {
+                        "id": "db-outbound-primary",
+                        "kind": "database",
+                        "details": {
+                            "db_type": db_opt,
+                            "type": db_opt
+                        }
+                    }
+                ],
+                "domain": {
+                    "data_models": [
+                        {
+                            "name": ent0.get("name", "Item"),
+                            "table_name": ent0.get("tableName", f"{ent0.get('name', 'item').lower()}s"),
+                            "fields": ent0.get("fields", [])
+                        }
+                    ]
+                },
+                "behaviors": [
+                    {
+                        "id": "behavior-crud-create",
+                        "given": "System is running and connected",
+                        "when": f"POST request to /api/v1/{ent0.get('tableName', 'items')} with valid payload",
+                        "then": "Entity is persisted and 201 Created is returned"
+                    }
+                ],
+                "non_functional": {
+                    "security": {"auth_type": security_opt, "roles": ["ADMIN", "OPERATOR"]},
+                    "resilience": {"timeout_ms": 3000, "circuit_breaker": True}
+                }
+            }
+            spec_json = json.dumps(spec_dict, indent=2)
+            return spec_json, prompt_tokens, len(spec_json.split())
 
         # -------------------------------------------------------------
         # Node 1: Blueprint design prompt

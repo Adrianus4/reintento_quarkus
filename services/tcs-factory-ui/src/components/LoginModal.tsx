@@ -60,8 +60,8 @@ export const LoginModal: React.FC = () => {
       <div className="w-full max-w-md bg-tcs-navy border border-tcs-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="p-6 bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-dark border-b border-tcs-border flex items-center space-x-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-tcs-blue to-tcs-cyan flex items-center justify-center shadow-lg flex-shrink-0">
-            <span className="text-white font-extrabold text-xl tracking-tight">TCS</span>
+          <div className="w-12 h-12 rounded-xl bg-black border border-white/20 p-1.5 flex items-center justify-center shadow-lg flex-shrink-0">
+            <img src="/tcs-logo.png" alt="TCS Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <h2 className="text-base font-extrabold text-white tracking-tight">

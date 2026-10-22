@@ -182,18 +182,73 @@ def spec_builder_node(state: JobState, llm: BaseLLMClient) -> JobState:
         for m in parsed["domain"]["data_models"]:
             models.append(DataModel(**m))
     else:
-        # Default single entity extracted from service name
-        default_entity = service_name.replace(f"{client_code}-", "").replace("-service", "").capitalize() or "Item"
-        models.append(DataModel(
-            name=default_entity,
-            table_name=f"{default_entity.lower()}s",
-            fields=[
+        # Dynamic semantic inference from requirements if no explicit model given
+        req_lower = f"{service_name} {state.get('requirements', '')}".lower()
+        if any(k in req_lower for k in ["fraude", "fraud", "reclamo", "disputa"]):
+            default_entity = "FraudClaim"
+            table_name = "fraud_claims"
+            f_list = [
+                DataField(name="id", type="UUID", required=True, is_id=True),
+                DataField(name="customerDni", type="String", required=True, description="DNI del titular"),
+                DataField(name="maskedCard", type="String", required=True, description="Tarjeta de credito enmascarada"),
+                DataField(name="fraudAmount", type="BigDecimal", required=True, description="Monto del fraude"),
+                DataField(name="reason", type="String", required=True, description="Motivo del reclamo"),
+                DataField(name="observations", type="String", required=False, description="Observaciones y detalles"),
+                DataField(name="status", type="String", required=True, description="Estado del reclamo"),
+                DataField(name="createdAt", type="LocalDateTime", required=True, description="Fecha de reporte"),
+            ]
+        elif any(k in req_lower for k in ["tarjeta", "card", "credito"]):
+            default_entity = "CreditCard"
+            table_name = "credit_cards"
+            f_list = [
+                DataField(name="id", type="UUID", required=True, is_id=True),
+                DataField(name="cardNumberMasked", type="String", required=True),
+                DataField(name="holderName", type="String", required=True),
+                DataField(name="holderDni", type="String", required=True),
+                DataField(name="creditLimit", type="BigDecimal", required=True),
+                DataField(name="status", type="String", required=True),
+                DataField(name="createdAt", type="LocalDateTime", required=True),
+            ]
+        elif any(k in req_lower for k in ["libro", "book", "catalogo", "catalog"]):
+            default_entity = "Book"
+            table_name = "books"
+            f_list = [
+                DataField(name="id", type="UUID", required=True, is_id=True),
+                DataField(name="title", type="String", required=True),
+                DataField(name="author", type="String", required=True),
+                DataField(name="isbn", type="String", required=True),
+                DataField(name="price", type="BigDecimal", required=True),
+                DataField(name="stock", type="Integer", required=True),
+                DataField(name="categoryId", type="UUID", required=True),
+                DataField(name="status", type="String", required=True),
+                DataField(name="createdAt", type="LocalDateTime", required=True),
+            ]
+        elif any(k in req_lower for k in ["videojuego", "videogame", "game", "juego"]):
+            default_entity = "VideoGame"
+            table_name = "video_games"
+            f_list = [
+                DataField(name="id", type="UUID", required=True, is_id=True),
+                DataField(name="title", type="String", required=True),
+                DataField(name="genre", type="String", required=True),
+                DataField(name="price", type="BigDecimal", required=True),
+                DataField(name="releaseDate", type="LocalDate", required=True),
+                DataField(name="inStock", type="Integer", required=True),
+            ]
+        else:
+            default_entity = service_name.replace(f"{client_code}-", "").replace("-service", "").capitalize() or "Item"
+            table_name = f"{default_entity.lower()}s"
+            f_list = [
                 DataField(name="id", type="UUID", required=True, is_id=True),
                 DataField(name="code", type="String", required=True),
                 DataField(name="amount", type="BigDecimal", required=True),
                 DataField(name="status", type="String", required=True),
                 DataField(name="createdAt", type="LocalDateTime", required=True),
             ]
+
+        models.append(DataModel(
+            name=default_entity,
+            table_name=table_name,
+            fields=f_list
         ))
 
     # Behaviors

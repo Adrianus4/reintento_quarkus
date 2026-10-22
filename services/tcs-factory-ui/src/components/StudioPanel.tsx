@@ -439,15 +439,20 @@ export const StudioPanel: React.FC = () => {
       {/* 1. Header con Cuenta de Cliente y Acciones Rápidas */}
       <div className="bg-gradient-to-r from-tcs-navy via-tcs-card to-tcs-navy border border-tcs-border rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center space-x-4">
-          {isBcp ? (
-            <div className="w-16 h-16 rounded-2xl bg-[#002A8F] p-2 flex items-center justify-center shadow-lg border border-blue-400/30 shrink-0">
-              <img src="/bcp-logo.png" alt="BCP Logo" className="w-full h-full object-contain" />
+          <div className="flex items-center space-x-2 shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-black p-1.5 flex items-center justify-center shadow-lg border border-white/20 shrink-0" title="TCS Intelligent Factory">
+              <img src="/tcs-logo.png" alt="TCS Logo" className="w-full h-full object-contain" />
             </div>
-          ) : (
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-tcs-blue/30 to-tcs-navy border border-tcs-border flex items-center justify-center text-tcs-cyan font-extrabold text-lg shrink-0">
-              {selectedClient.slice(0, 3).toUpperCase()}
-            </div>
-          )}
+            {isBcp ? (
+              <div className="w-14 h-14 rounded-2xl bg-[#002A8F] p-2 flex items-center justify-center shadow-lg border border-blue-400/30 shrink-0" title="Cuenta BCP">
+                <img src="/bcp-logo.png" alt="BCP Logo" className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-tcs-blue/30 to-tcs-navy border border-tcs-border flex items-center justify-center text-tcs-cyan font-extrabold text-lg shrink-0">
+                {selectedClient.slice(0, 3).toUpperCase()}
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="flex items-center space-x-2.5">

@@ -45,8 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
         {/* Brand & Title */}
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            <div className="w-9 h-9 rounded bg-gradient-to-br from-tcs-blue to-tcs-cyan flex items-center justify-center shadow-lg shadow-tcs-blue/20">
-              <span className="text-white font-extrabold text-sm tracking-wider">TCS</span>
+            <div className="w-10 h-10 rounded-xl bg-black border border-white/20 p-1 flex items-center justify-center shadow-lg shadow-cyan-900/20 shrink-0">
+              <img src="/tcs-logo.png" alt="TCS Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
