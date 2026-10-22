@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { CodeViewer } from './CodeViewer';
 import { ClientSelectorCards } from './ClientSelectorCards';
 import { VerifierModal } from './VerifierModal';
+import { AiConfigModal } from './AiConfigModal';
 import {
   ClientProfile,
   OpenApiSpecSummary,
@@ -20,6 +21,13 @@ export const StudioPanel: React.FC = () => {
   const [activeClient, setActiveClient] = useState<ClientProfile | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [contracts, setContracts] = useState<OpenApiSpecSummary[]>([]);
+
+  // AI Gateway & Vault Key Ingestion State
+  const [activeAiConfig, setActiveAiConfig] = useState<{ provider: string; model_name: string }>({
+    provider: 'MOCK',
+    model_name: 'mock-fast',
+  });
+  const [showAiModal, setShowAiModal] = useState<boolean>(false);
 
   // 7-Phase Stepper: 1 to 7
   const [activePhase, setActivePhase] = useState<number>(1);
@@ -103,8 +111,23 @@ export const StudioPanel: React.FC = () => {
     }
   };
 
+  const fetchGatewayConfig = async () => {
+    try {
+      const cfg = await api.orchestrator.getGatewayConfig();
+      if (cfg && cfg.active_provider) {
+        setActiveAiConfig({
+          provider: cfg.active_provider.toUpperCase(),
+          model_name: cfg.model_name || 'default',
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load gateway config', e);
+    }
+  };
+
   useEffect(() => {
     fetchAuthorizedClients();
+    fetchGatewayConfig();
   }, [user]);
 
   // Select Client
@@ -416,6 +439,34 @@ export const StudioPanel: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* AI Provider Status Pill */}
+          {activeAiConfig.provider !== 'MOCK' ? (
+            <div className="flex items-center space-x-2 px-3 py-2 bg-emerald-950/70 border border-emerald-500/50 rounded-xl shadow-lg">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <div className="text-xs">
+                <span className="text-emerald-400 font-extrabold font-mono">IA EN VIVO:</span>{' '}
+                <span className="text-white font-bold">{activeAiConfig.provider}</span>{' '}
+                <span className="text-emerald-300 font-mono text-[11px]">({activeAiConfig.model_name})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAiModal(true)}
+                className="ml-1 text-[11px] text-emerald-400 underline hover:text-white font-medium"
+              >
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAiModal(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black text-xs font-extrabold rounded-xl shadow-lg flex items-center space-x-1.5 transition-all"
+            >
+              <span>⚡</span>
+              <span>Ingestar API Key & Modelo</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveClient(null)}

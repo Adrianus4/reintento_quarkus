@@ -202,8 +202,10 @@ export const api = {
           api_key: data.api_key,
         }),
       }),
-    testVaultKey: async (provider: string) => {
-      const payload = { provider: provider.toLowerCase() };
+    testVaultKey: async (provider: string, apiKey?: string, modelName?: string) => {
+      const payload: any = { provider: provider.toLowerCase() };
+      if (apiKey) payload.api_key = apiKey;
+      if (modelName) payload.model_name = modelName;
       try {
         const res = await request<any>(PORTS.ORCHESTRATOR, '/vault/test-connection', {
           method: 'POST',

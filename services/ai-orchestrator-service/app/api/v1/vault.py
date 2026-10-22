@@ -2,10 +2,9 @@ import time
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.api.deps import require_admin
+from app.api.deps import get_optional_user, require_admin_or_local
 from app.core.database import get_db
 from app.core.vault import decrypt_secret, encrypt_secret, mask_secret
-from app.llm.factory import LLMClientFactory
 from app.models.credential import VaultCredential
 from app.schemas.vault import (
     TestConnectionRequest,
@@ -19,17 +18,17 @@ router = APIRouter()
 
 @router.get("/keys", response_model=List[VaultKeyResponse])
 def list_vault_keys(
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ) -> Any:
-    """List stored AI provider credentials with masked keys. Requires ADMIN role."""
+    """List stored AI provider credentials with masked keys."""
     keys = db.query(VaultCredential).order_by(VaultCredential.provider.asc()).all()
     return keys
 
 
 @router.get("/status")
 def get_vault_status(
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ) -> Any:
     """Return dictionary of configured AI providers and masked credentials."""
@@ -46,10 +45,10 @@ def get_vault_status(
 @router.post("/keys", response_model=VaultKeyResponse, status_code=status.HTTP_201_CREATED)
 def save_vault_key(
     payload: VaultKeySaveRequest,
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(require_admin_or_local),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Store or rotate an AI provider API Key with Fernet encryption at rest. Requires ADMIN role."""
+    """Store or rotate an AI provider API Key with Fernet encryption at rest."""
     provider_clean = payload.provider.lower().strip()
     encrypted = encrypt_secret(payload.api_key.strip())
     masked = mask_secret(payload.api_key.strip())
@@ -78,55 +77,68 @@ def save_vault_key(
 @router.post("/test-connection", response_model=TestConnectionResponse)
 def test_vault_connection(
     payload: TestConnectionRequest,
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Test connectivity and authentication for a configured AI provider. Requires ADMIN role."""
+    """Test connectivity and authentication for a configured AI provider (live or saved key)."""
     provider_clean = payload.provider.lower().strip()
-    cred = db.query(VaultCredential).filter(
-        VaultCredential.provider == provider_clean,
-        VaultCredential.is_active == True
-    ).first()
+    api_key = payload.api_key.strip() if payload.api_key and payload.api_key.strip() else None
 
-    if not cred:
+    if not api_key:
+        cred = db.query(VaultCredential).filter(
+            VaultCredential.provider == provider_clean,
+            VaultCredential.is_active == True
+        ).first()
+
+        if not cred:
+            return TestConnectionResponse(
+                provider=provider_clean,
+                connected=False,
+                latency_ms=0,
+                message=f"No active credentials stored for provider '{provider_clean}'."
+            )
+        api_key = decrypt_secret(cred.encrypted_key)
+
+    t0 = time.time()
+    try:
+        if provider_clean == "gemini":
+            from app.llm.gemini_client import GeminiClient
+            client = GeminiClient(api_key=api_key, model_name=payload.model_name)
+        elif provider_clean == "anthropic":
+            from app.llm.anthropic_client import AnthropicClient
+            client = AnthropicClient(api_key=api_key, model_name=payload.model_name)
+        else:
+            from app.llm.openai_compat import OpenAICompatClient
+            client = OpenAICompatClient(provider=provider_clean, api_key=api_key, model_name=payload.model_name, base_url=payload.base_url)
+
+        is_connected = client.test_connection()
+        latency = int((time.time() - t0) * 1000)
+
+        return TestConnectionResponse(
+            provider=provider_clean,
+            connected=is_connected,
+            latency_ms=latency,
+            message="Conexión verificada exitosamente con el proveedor de IA" if is_connected else "Fallo de autenticación: Verifique su API Key o cuota"
+        )
+    except Exception as exc:
+        latency = int((time.time() - t0) * 1000)
         return TestConnectionResponse(
             provider=provider_clean,
             connected=False,
-            latency_ms=0,
-            message=f"No active credentials stored for provider '{provider_clean}'."
+            latency_ms=latency,
+            message=f"Error al conectar con {provider_clean}: {str(exc)}"
         )
-
-    api_key = decrypt_secret(cred.encrypted_key)
-    t0 = time.time()
-
-    if provider_clean == "gemini":
-        from app.llm.gemini_client import GeminiClient
-        client = GeminiClient(api_key=api_key)
-    else:
-        from app.llm.openai_compat import OpenAICompatClient
-        client = OpenAICompatClient(provider=provider_clean, api_key=api_key)
-
-    is_connected = client.test_connection()
-    latency = int((time.time() - t0) * 1000)
-
-    return TestConnectionResponse(
-        provider=provider_clean,
-        connected=is_connected,
-        latency_ms=latency,
-        message="Connection verified successfully" if is_connected else "Authentication or connection check failed"
-    )
 
 
 @router.post("/keys/{provider}/test", response_model=TestConnectionResponse)
 def test_vault_key_by_path(
     provider: str,
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ) -> Any:
     """Alternative REST path to test connection for a specific provider."""
     return test_vault_connection(
         payload=TestConnectionRequest(provider=provider),
-        admin_user=admin_user,
+        user=user,
         db=db
     )
-

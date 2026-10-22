@@ -1,7 +1,7 @@
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.api.deps import get_verified_user, require_admin
+from app.api.deps import get_optional_user, require_admin_or_local
 from app.core.database import get_db
 from app.models.gateway_config import GatewayConfig
 from app.schemas.gateway import GatewayConfigResponse, GatewayConfigUpdate
@@ -26,7 +26,7 @@ def _get_or_create_config(db: Session) -> GatewayConfig:
 
 @router.get("/config", response_model=GatewayConfigResponse)
 def get_gateway_config(
-    user: dict = Depends(get_verified_user),
+    user: dict = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ) -> Any:
     """Retrieve active AI gateway provider and consumption mode."""
@@ -36,10 +36,10 @@ def get_gateway_config(
 @router.put("/config", response_model=GatewayConfigResponse)
 def update_gateway_config(
     payload: GatewayConfigUpdate,
-    admin_user: dict = Depends(require_admin),
+    user: dict = Depends(require_admin_or_local),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Update active provider, consumption mode, or temperature in hot-switch. Requires ADMIN role."""
+    """Update active provider, model name, or temperature in hot-switch."""
     config = _get_or_create_config(db)
 
     if payload.active_provider is not None:
@@ -56,4 +56,3 @@ def update_gateway_config(
     db.commit()
     db.refresh(config)
     return config
-

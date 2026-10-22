@@ -14,7 +14,8 @@ graph TD
     UI["Frontend: tcs-factory-ui (Port 5173)<br/>React 18 + Vite + TypeScript + Tailwind"]
     
     AUTH["auth-access-service (Port 8001)<br/>Strict 2-Role RBAC (ADMIN/DEVELOPER) & JWT"]
-    GOV["client-governance-service (Port 8002)<br/>Client Profiles, Directives & OpenAPI Catalog"]
+    GOV["client-gove
+    rnance-service (Port 8002)<br/>Client Profiles, Directives & OpenAPI Catalog"]
     ORCH["ai-orchestrator-service (Port 8003)<br/>Fernet Vault, AI Gateway & LangGraph Multi-Agent"]
     VERIF["sandbox-verifier-service (Port 8004)<br/>Ephemeral Sandbox, Maven Compiler, SHA-256 Manifest & ZIP"]
 

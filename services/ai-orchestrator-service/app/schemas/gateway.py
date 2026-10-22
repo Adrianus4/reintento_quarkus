@@ -1,12 +1,10 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-ProviderChoice = Literal["gemini", "deepseek", "grok", "mock"]
 
 
 class GatewayConfigUpdate(BaseModel):
-    active_provider: Optional[ProviderChoice] = None
+    active_provider: Optional[str] = None
     model_name: Optional[str] = None
     consumption_mode: Optional[str] = None
     temperature: Optional[float] = Field(None, ge=0.0, le=1.0)

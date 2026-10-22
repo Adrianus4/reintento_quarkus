@@ -1,13 +1,13 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-ProviderLiteral = Literal["gemini", "deepseek", "grok"]
 
 
 class VaultKeySaveRequest(BaseModel):
-    provider: ProviderLiteral
-    api_key: str = Field(..., min_length=10, description="Raw provider API Key to be encrypted with Fernet")
+    provider: str
+    api_key: str = Field(..., min_length=5, description="Raw provider API Key to be encrypted with Fernet")
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
 
     @field_validator("provider", mode="before")
     @classmethod
@@ -27,7 +27,10 @@ class VaultKeyResponse(BaseModel):
 
 
 class TestConnectionRequest(BaseModel):
-    provider: ProviderLiteral
+    provider: str
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
 
     @field_validator("provider", mode="before")
     @classmethod
@@ -40,4 +43,3 @@ class TestConnectionResponse(BaseModel):
     connected: bool
     latency_ms: int
     message: str
-

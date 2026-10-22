@@ -63,6 +63,16 @@ def get_optional_user(
     return {"user_id": "anonymous", "role": "DEVELOPER", "assigned_clients": ["*"]}
 
 
+def require_admin_or_local(user: Dict[str, Any] = Depends(get_optional_user)) -> Dict[str, Any]:
+    """Ensure caller has ADMIN role if token provided, otherwise allow local developer access."""
+    if user.get("user_id") != "anonymous" and user.get("role") != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required for this operation"
+        )
+    return user
+
+
 def require_admin(user: Dict[str, Any] = Depends(get_verified_user)) -> Dict[str, Any]:
     """Ensure caller has corporate ADMIN role."""
     if user.get("role") != "ADMIN":

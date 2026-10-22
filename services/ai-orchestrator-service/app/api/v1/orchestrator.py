@@ -307,7 +307,68 @@ def infer_microservice_spec(
     requirements = payload.get("requirements", "").strip()
     req_lower = requirements.lower()
 
-    # Determine domain from requirement
+    # If real LLM is configured, query the active LLM directly!
+    try:
+        from app.llm.mock_client import MockLLMClient
+        llm = LLMClientFactory.get_client(db)
+        if not isinstance(llm, MockLLMClient):
+            system_prompt = (
+                "You are a Principal Software Architect at TCS specializing in enterprise Quarkus 3.x microservices.\n"
+                "Analyze the user's microservice requirement and output ONLY a valid JSON object defining the complete 7-phase architecture specification.\n"
+                "JSON format MUST match this exact schema:\n"
+                "{\n"
+                '  "artifact_id": "string",\n'
+                '  "package_prefix": "string",\n'
+                '  "http_port": 8080,\n'
+                '  "java_version": "21",\n'
+                '  "quarkus_version": "3.15.1",\n'
+                '  "build_tool": "maven",\n'
+                '  "architecture_style": "Hexagonal",\n'
+                '  "custom_architecture_notes": "string",\n'
+                '  "security_option": "JWT",\n'
+                '  "jwt_issuer": "string",\n'
+                '  "security_roles": ["ADMIN", "OPERATOR", "AUDITOR"],\n'
+                '  "database_option": "SQLSERVER_PANACHE" or "POSTGRESQL_PANACHE" or "NONE",\n'
+                '  "database_name": "string",\n'
+                '  "entities": [\n'
+                '    {\n'
+                '      "name": "EntityName",\n'
+                '      "tableName": "table_name",\n'
+                '      "fields": [\n'
+                '        {"name": "id", "type": "UUID", "required": true, "isId": true},\n'
+                '        {"name": "fieldName", "type": "String", "required": true}\n'
+                '      ]\n'
+                '    }\n'
+                '  ],\n'
+                '  "custom_endpoints": [\n'
+                '    {"method": "POST", "path": "/api/v1/resource", "summary": "string"}\n'
+                '  ],\n'
+                '  "design_patterns": ["REPOSITORY", "BUILDER", "OUTBOX"],\n'
+                '  "event_broker": "kafka",\n'
+                '  "event_topic_out": "string",\n'
+                '  "event_topic_in": "string"\n'
+                "}"
+            )
+            user_prompt = f"Client: {client_code.upper()}\nRequirement: {requirements}"
+            text_resp, _, _ = llm.generate(system_prompt, user_prompt)
+            from app.graph.nodes import extract_and_parse_json
+            parsed = extract_and_parse_json(text_resp)
+            if isinstance(parsed, dict) and "entities" in parsed and len(parsed["entities"]) > 0:
+                parsed.setdefault("build_tool", "maven")
+                parsed.setdefault("java_version", "21")
+                parsed.setdefault("quarkus_version", "3.15.1")
+                parsed.setdefault("http_port", 8080)
+                parsed.setdefault("architecture_style", "Hexagonal")
+                return parsed
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al inferir con el modelo {getattr(llm, 'model_name', 'LLM')}: {str(exc)}"
+        )
+
+    # Determine domain from requirement (Fallback when MOCK is active)
     if any(k in req_lower for k in ["poliza", "seguro", "insurance", "siniestro", "asegurad"]):
         domain_name = "polizas"
         entity_name = "Policy"

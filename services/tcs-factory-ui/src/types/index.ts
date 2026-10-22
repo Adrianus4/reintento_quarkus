@@ -61,7 +61,7 @@ export interface ConsolidatedGovernance {
   contracts: OpenApiSpecSummary[];
 }
 
-export type AiProvider = 'GEMINI' | 'DEEPSEEK' | 'GROK' | 'MOCK';
+export type AiProvider = 'OPENAI' | 'GEMINI' | 'DEEPSEEK' | 'ANTHROPIC' | 'GROK' | 'OPENROUTER' | 'GROQ' | 'OLLAMA' | 'CUSTOM' | 'MOCK';
 export type GatewayTier = 'economic' | 'balanced' | 'advanced';
 
 export interface AiGatewayConfig {

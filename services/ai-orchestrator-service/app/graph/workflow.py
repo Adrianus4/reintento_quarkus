@@ -1,4 +1,6 @@
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict
+from sqlalchemy.orm import Session
 from app.graph.nodes import (
     design_blueprint_node,
     fetch_governance_node,
@@ -16,13 +18,13 @@ class GenerationWorkflow:
         job_id: str,
         user_id: str,
         client_code: str,
-        requirements: str,
-        contract_id: Optional[str],
-        token: str,
-        llm: BaseLLMClient,
-        config: Optional[Dict[str, Any]] = None,
+        contract_id: str = None,
+        requirements: str = "",
+        config: Dict[str, Any] = None,
+        llm: BaseLLMClient = None,
+        token: str = None
     ) -> JobState:
-        """Run the full multi-agent generation pipeline."""
+        """Run sequential LangGraph execution pipeline."""
         state: JobState = {
             "job_id": job_id,
             "user_id": user_id,
@@ -35,8 +37,8 @@ class GenerationWorkflow:
             "files": {},
             "prompt_tokens": 0,
             "completion_tokens": 0,
-            "cost_usd": 0.0,
             "duration_ms": 0,
+            "cost_usd": 0.0,
             "status": "PENDING",
             "error": None,
         }
@@ -48,7 +50,7 @@ class GenerationWorkflow:
             # 2. Design Blueprint
             state = design_blueprint_node(state, llm)
 
-            # 3. Generate Scaffolding (pom.xml, CI/CD, properties)
+            # 3. Generate Scaffolding (pom.xml or build.gradle, CI/CD, properties)
             state = generate_scaffolding_node(state, llm)
 
             # 4. Generate Domain & REST Resources
@@ -59,25 +61,8 @@ class GenerationWorkflow:
 
             state["status"] = "AWAITING_REVIEW"
         except Exception as exc:
-            # Graceful fallback: If external LLM fails (e.g. rate limit, bad API key, outage),
-            # fall back to deterministic Mock engine to never block developers
-            from app.llm.mock_client import MockLLMClient
-            if not isinstance(llm, MockLLMClient):
-                mock_llm = MockLLMClient()
-                try:
-                    if not state.get("blueprint"):
-                        state = design_blueprint_node(state, mock_llm)
-                    if "pom.xml" not in state.get("files", {}):
-                        state = generate_scaffolding_node(state, mock_llm)
-                    state = generate_domain_node(state, mock_llm)
-                    state = generate_tests_node(state, mock_llm)
-                    state["status"] = "AWAITING_REVIEW"
-                    state["error"] = None
-                except Exception as inner_exc:
-                    state["status"] = "FAILED"
-                    state["error"] = f"Original error: {str(exc)} | Fallback error: {str(inner_exc)}"
-            else:
-                state["status"] = "FAILED"
-                state["error"] = str(exc)
+            # Report the actual error from the configured LLM without silent mock fallbacks
+            state["status"] = "FAILED"
+            state["error"] = f"Error invocando el modelo {getattr(llm, 'model_name', 'LLM')}: {str(exc)}"
 
         return state
